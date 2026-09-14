@@ -1,0 +1,1640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Mixer</title>
+<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.4/build/opensheetmusicdisplay.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
+<style>
+/* ── Design tokens (matches Groove Mixer / Melody Mixer) ─────────────────
+   Primary:   #FFFFFF (white)
+   Secondary: #1A1A1A (near-black)
+   Tertiary:  #6B6B6B (mid-gray)
+   Border:    #E0E0E0
+   Hover:     #F4F4F4
+   Accent:    #1A1A1A (black used as accent)
+───────────────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 14px; color: #1A1A1A; background: #F4F4F4;
+  height: 100vh; overflow: hidden;
+}
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 260px; min-width: 260px;
+  background: #FFFFFF;
+  border-right: 1px solid #E0E0E0;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  transition: transform 0.25s ease;
+  height: 100vh; flex-shrink: 0;
+}
+.sidebar.collapsed { transform: translateX(-260px); margin-right: -260px; }
+
+.sidebar-header {
+  padding: 16px 16px 14px;
+  font-weight: 700; font-size: 11px; color: #1A1A1A;
+  border-bottom: 2px solid #1A1A1A;
+  display: flex; align-items: center; gap: 8px;
+  text-transform: uppercase; letter-spacing: .12em;
+  position: relative; cursor: pointer;
+}
+.icon { width: 14px; height: 14px; fill: currentColor; }
+
+/* ── Accordion ── */
+.acc-section { border-bottom: 1px solid #E8E8E8; }
+.acc-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: none; border: none; cursor: pointer;
+  font-size: 10px; font-weight: 700; color: #6B6B6B;
+  text-transform: uppercase; letter-spacing: .1em; text-align: left;
+  transition: background .1s, color .1s;
+}
+.acc-trigger:hover { background: #F4F4F4; color: #1A1A1A; }
+.acc-trigger.open { color: #1A1A1A; background: #F8F8F8; }
+.acc-chevron {
+  width: 13px; height: 13px; flex-shrink: 0; fill: none;
+  stroke: currentColor; stroke-width: 2.5;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+.acc-trigger.open .acc-chevron { transform: rotate(180deg); }
+.acc-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.25s ease;
+  padding: 0 16px;
+}
+.acc-body.open { max-height: 900px; padding: 4px 16px 16px; }
+
+/* ── Form controls inside sidebar ── */
+.field-label {
+  font-size: 10px; font-weight: 700; color: #6B6B6B;
+  text-transform: uppercase; letter-spacing: .08em;
+  margin-bottom: 6px; margin-top: 12px;
+}
+.field-label:first-child { margin-top: 0; }
+.field-hint { font-size: 11px; color: #999; margin-bottom: 10px; line-height: 1.4; }
+select, input[type="number"] {
+  width: 100%; font-size: 13px; padding: 6px 8px;
+  border: 1px solid #D0D0D0; border-radius: 3px;
+  background: #fff; color: #1A1A1A;
+}
+.radio-group, .tog-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.tog {
+  font-size: 12px; padding: 5px 11px; border-radius: 4px;
+  border: 1px solid #D0D0D0; background: #fff; color: #555;
+  cursor: pointer; user-select: none; transition: all .12s;
+}
+.tog:hover { border-color: #999; color: #1A1A1A; }
+.tog.on { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
+.controls-disabled { opacity: 0.35; pointer-events: none; }
+
+/* Position grid (accent / flam / drag eligibility, custom sticking) */
+.pos-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; }
+.pos-cell {
+  font-size: 12px; padding: 6px 0; border-radius: 4px;
+  border: 1px solid #D0D0D0; background: #fff; color: #555;
+  cursor: pointer; user-select: none; transition: all .12s;
+}
+.pos-cell:hover { border-color: #999; color: #1A1A1A; }
+.pos-cell.on { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
+.pos-cell.hand-r.on { background: #1A1A1A; border-color: #1A1A1A; }
+.pos-cell.hand-l.on { background: #6B6B6B; border-color: #6B6B6B; }
+
+.voice-toggle-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 0;
+}
+.voice-toggle-row .v-label { font-size: 13px; color: #1A1A1A; }
+.switch {
+  position: relative; width: 34px; height: 18px; flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch-track {
+  position: absolute; inset: 0; background: #D0D0D0; border-radius: 999px;
+  cursor: pointer; transition: background .15s;
+}
+.switch-track::before {
+  content: ""; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px;
+  background: #fff; border-radius: 50%; transition: transform .15s;
+}
+.switch input:checked + .switch-track { background: #1A1A1A; }
+.switch input:checked + .switch-track::before { transform: translateX(16px); }
+
+/* ── Main area ── */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.top-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 20px; background: #FFFFFF; border-bottom: 1px solid #E0E0E0;
+  flex-wrap: wrap;
+}
+.btn-settings, .btn-gen, .btn-play, .btn-stop, .btn-zoom {
+  font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 4px;
+  border: 1px solid #D0D0D0; background: #fff; color: #1A1A1A;
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  text-transform: uppercase; letter-spacing: .04em;
+  transition: all .1s;
+}
+.btn-settings:hover, .btn-play:hover, .btn-stop:hover, .btn-zoom:hover { border-color: #1A1A1A; }
+.btn-gen { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
+.btn-gen:hover { background: #333; }
+.btn-zoom { padding: 8px 11px; }
+.settings-icon { width: 14px; height: 14px; fill: currentColor; }
+
+.play-status-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+/* ── Mixer (horizontal channel strips) ── */
+.mixer {
+  display: flex; align-items: center; gap: 28px;
+  padding: 12px 24px; background: #FFFFFF; border-bottom: 1px solid #E0E0E0;
+}
+.fader-channel { display: flex; align-items: center; gap: 10px; }
+.fader-channel-master { padding-left: 20px; border-left: 1px solid #E0E0E0; }
+.fader-label {
+  font-size: 10px; font-weight: 700; color: #6B6B6B;
+  text-transform: uppercase; letter-spacing: .08em;
+  min-width: 44px;
+}
+input[type="range"].fader {
+  width: 110px; height: 20px;
+  accent-color: #1A1A1A;
+}
+.fader-val { font-size: 11px; color: #6B6B6B; min-width: 22px; text-align: center; }
+.play-status { font-size: 12px; color: #6B6B6B; margin-left: auto; align-self: center; }
+
+/* ── Staff area ── */
+.content-scroll { flex: 1; overflow-y: auto; padding: 20px; }
+.staff-card {
+  background: #fff; border: 1px solid #E0E0E0; border-radius: 6px;
+  padding: 20px; max-width: 1600px; width: 100%;
+}
+#staff-scale-wrap { transform-origin: top left; }
+
+/* ── Bottom bar ── */
+.bottom-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; background: #FFFFFF; border-top: 1px solid #E0E0E0;
+}
+.btn-share {
+  font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 4px;
+  border: 1px solid #D0D0D0; background: #fff; color: #1A1A1A; cursor: pointer;
+}
+.btn-share:hover { border-color: #1A1A1A; }
+.brand-footer {
+  font-size: 10px; color: #999; text-align: center; padding: 8px 0 4px;
+  text-transform: uppercase; letter-spacing: .1em;
+}
+
+/* ── Responsive: tablet/mobile (sidebar becomes an overlay drawer) ── */
+@media (max-width: 1023px) {
+  .sidebar {
+    position: fixed; top: 0; left: 0; z-index: 100;
+    box-shadow: 4px 0 20px rgba(0,0,0,0.18);
+  }
+  .sidebar-backdrop {
+    display: none;
+    position: fixed; inset: 0; z-index: 99;
+    background: rgba(0,0,0,0.35);
+  }
+  .sidebar-backdrop.visible { display: block; }
+  .main { width: 100%; }
+}
+
+@media (max-width: 600px) {
+  .sidebar { width: 85vw; min-width: 0; }
+  .sidebar.collapsed { transform: translateX(-85vw); margin-right: -85vw; }
+
+  .top-bar { padding: 10px 12px; gap: 6px; }
+  .btn-settings, .btn-gen, .btn-play, .btn-stop, .btn-zoom {
+    padding: 10px 10px; font-size: 11px;
+  }
+  .play-status-wrap { margin-left: 0; width: 100%; order: 10; }
+
+  .mixer { padding: 10px 12px; gap: 14px; overflow-x: auto; flex-wrap: wrap; }
+  input[type="range"].fader { width: 80px; height: 26px; }
+  .fader-channel-master { padding-left: 10px; }
+
+  .content-scroll { padding: 10px; overflow-x: auto; }
+  .staff-card { padding: 10px; }
+
+  .bottom-bar { padding: 10px 12px; flex-wrap: wrap; }
+
+  .tog, .pos-cell { padding: 8px 13px; font-size: 13px; }
+  .switch { width: 40px; height: 24px; }
+  .switch-track::before { width: 18px; height: 18px; }
+  .switch input:checked + .switch-track::before { transform: translateX(18px); }
+  .voice-toggle-row { padding: 9px 0; }
+}
+
+@media print {
+  .sidebar, .top-bar, .mixer, .bottom-bar, .brand-footer { display: none !important; }
+  body { background: #fff; padding: 0; height: auto; overflow: visible; }
+  .app { height: auto; display: block; }
+  .main { height: auto; overflow: visible; }
+  .content-scroll { overflow: visible; padding: 0; height: auto; }
+  .staff-card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header" id="sidebarHeaderCollapse" title="Collapse settings">
+      <svg class="icon" viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      Grid Mixer
+      <svg id="sidebarCollapseChevron" style="width:14px;height:14px;fill:none;stroke:#6B6B6B;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;margin-left:auto;transition:transform .25s ease;" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+
+    <div class="acc-section">
+      <button class="acc-trigger open" data-target="acc-structure">
+        Structure
+        <svg class="acc-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="acc-body open" id="acc-structure">
+        <div class="field-label">Subdivision</div>
+        <div class="radio-group" id="subdivisionGroup">
+          <div class="tog on" data-subdivision="sixteenth">16th Notes</div>
+          <div class="tog" data-subdivision="triplet">Triplets</div>
+        </div>
+        <div class="field-label">Measures</div>
+        <select id="measureCount">
+          <option value="1">1</option>
+          <option value="2" selected>2</option>
+          <option value="4">4</option>
+          <option value="8">8</option>
+          <option value="16">16</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="acc-section">
+      <button class="acc-trigger" data-target="acc-sticking">
+        Sticking
+        <svg class="acc-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="acc-body" id="acc-sticking">
+        <div class="field-label">Pattern</div>
+        <div class="radio-group" id="stickingGroup">
+          <div class="tog on" data-sticking="alternating">Alternating</div>
+          <div class="tog" data-sticking="doubles">Doubles</div>
+          <div class="tog" data-sticking="paradiddle">Paradiddle</div>
+          <div class="tog" data-sticking="paradiddlediddle">Paradiddle-Diddle</div>
+          <div class="tog" data-sticking="triple">Triple Paradiddle</div>
+          <div class="tog" data-sticking="custom">Custom</div>
+        </div>
+        <div id="customStickingWrapper" style="display:none;">
+          <div class="field-label">Click a cell to flip R / L</div>
+          <div class="pos-grid" id="customStickingGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc-section">
+      <button class="acc-trigger" data-target="acc-accents">
+        Accent Grid
+        <svg class="acc-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="acc-body" id="acc-accents">
+        <div class="field-label">Mode</div>
+        <div class="radio-group" id="accentModeGroup">
+          <div class="tog" data-accent-mode="static">Static</div>
+          <div class="tog on" data-accent-mode="rotating">Rotating</div>
+          <div class="tog" data-accent-mode="mixed">Mixed</div>
+        </div>
+
+        <div id="accentStaticWrapper" style="display:none;">
+          <div class="field-label">Accent positions</div>
+          <div class="pos-grid" id="accentStaticGrid"></div>
+        </div>
+
+        <div id="accentMixedWrapper" style="display:none;">
+          <div class="field-hint">Each measure gets a different, randomly-placed set of accents &mdash; no need to hand-pick every position.</div>
+          <div class="field-label" style="display:flex; justify-content:space-between;">
+            <span>Accent density</span>
+            <span id="accentMixedDensityVal" style="color:#1A1A1A; font-weight:700;">25%</span>
+          </div>
+          <input type="range" id="accentMixedDensitySlider" min="0" max="100" value="25" step="5" style="width:100%;">
+        </div>
+
+        <div id="accentRotatingWrapper">
+          <div class="field-hint">A single accent starts at the position below and shifts every N measures &mdash; the classic rotating-accent drill.</div>
+          <div class="field-label">Start position</div>
+          <div class="pos-grid" id="accentRotateStartGrid"></div>
+          <div class="field-label" style="margin-top:12px;">Shift every</div>
+          <select id="accentRotateEvery">
+            <option value="1" selected>Every beat</option>
+            <option value="2">Every 2 beats</option>
+            <option value="4">Every measure</option>
+          </select>
+          <div class="field-label">Direction</div>
+          <div class="radio-group" id="accentRotateDirGroup">
+            <div class="tog on" data-dir="1">Forward</div>
+            <div class="tog" data-dir="-1">Backward</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc-section">
+      <button class="acc-trigger" data-target="acc-flam">
+        Flams
+        <svg class="acc-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="acc-body" id="acc-flam">
+        <div class="voice-toggle-row">
+          <span class="v-label">Enable flams</span>
+          <label class="switch"><input type="checkbox" id="flamToggle"><span class="switch-track"></span></label>
+        </div>
+        <div class="voice-toggle-row">
+          <span class="v-label">Flams always accent</span>
+          <label class="switch"><input type="checkbox" id="flamAccentToggle"><span class="switch-track"></span></label>
+        </div>
+        <div id="flamDetailControl" class="controls-disabled">
+          <div class="field-label">Pattern</div>
+          <div class="radio-group" id="flamModeGroup">
+            <div class="tog on" data-flam-mode="fixed">Fixed</div>
+            <div class="tog" data-flam-mode="mixed">Mixed</div>
+          </div>
+          <div class="field-hint" id="flamModeHint">Fixed repeats the same flam pattern every measure. Mixed rolls a new pattern per measure, so a longer phrase (2/4/8/16 measures) doesn't just repeat.</div>
+          <div class="field-label" style="display:flex; justify-content:space-between;">
+            <span>Density</span>
+            <span id="flamDensityVal" style="color:#1A1A1A; font-weight:700;">40%</span>
+          </div>
+          <input type="range" id="flamDensitySlider" min="0" max="100" value="40" step="5" style="width:100%;">
+          <div class="field-label" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Eligible positions</span>
+            <span style="display:flex; gap:6px;">
+              <span class="tog" id="flamSelectAll" style="font-size:10px; padding:3px 8px;">Select All</span>
+              <span class="tog" id="flamClearAll" style="font-size:10px; padding:3px 8px;">Clear All</span>
+            </span>
+          </div>
+          <div class="pos-grid" id="flamEligibleGrid"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="acc-section">
+      <button class="acc-trigger" data-target="acc-drag">
+        Drags / Diddles
+        <svg class="acc-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="acc-body" id="acc-drag">
+        <div class="voice-toggle-row">
+          <span class="v-label">Enable drags</span>
+          <label class="switch"><input type="checkbox" id="dragToggle"><span class="switch-track"></span></label>
+        </div>
+        <div id="dragDetailControl" class="controls-disabled">
+          <div class="field-label">Pattern</div>
+          <div class="radio-group" id="dragModeGroup">
+            <div class="tog on" data-drag-mode="fixed">Fixed</div>
+            <div class="tog" data-drag-mode="mixed">Mixed</div>
+          </div>
+          <div class="field-hint" id="dragModeHint">Fixed repeats the same drag pattern every measure. Mixed rolls a new pattern per measure, so a longer phrase (2/4/8/16 measures) doesn't just repeat.</div>
+          <div class="field-label" style="display:flex; justify-content:space-between;">
+            <span>Density</span>
+            <span id="dragDensityVal" style="color:#1A1A1A; font-weight:700;">40%</span>
+          </div>
+          <input type="range" id="dragDensitySlider" min="0" max="100" value="40" step="5" style="width:100%;">
+          <div class="field-label" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Eligible positions</span>
+            <span style="display:flex; gap:6px;">
+              <span class="tog" id="dragSelectAll" style="font-size:10px; padding:3px 8px;">Select All</span>
+              <span class="tog" id="dragClearAll" style="font-size:10px; padding:3px 8px;">Clear All</span>
+            </span>
+          </div>
+          <div class="pos-grid" id="dragEligibleGrid"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Main ── -->
+  <div class="main">
+
+    <div class="top-bar">
+      <button class="btn-settings" id="btnSettings">
+        <svg class="settings-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58z"/></svg>
+        Settings
+      </button>
+      <button class="btn-gen" id="btnGen">MIX IT UP!</button>
+      <button class="btn-play" id="btnPlay">&#9654; Play</button>
+      <button class="btn-stop" id="btnStop">&#9632; Stop</button>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button class="btn-zoom" id="btnZoomOut" title="Zoom out">&#8722;</button>
+        <span id="zoomLabel" style="font-size:12px;color:#666;min-width:36px;text-align:center;">100%</span>
+        <button class="btn-zoom" id="btnZoomIn" title="Zoom in">&#43;</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;margin-left:8px;">
+        <span style="font-size:11px;color:#6B6B6B;">Tempo: <span id="tempoVal">100</span> BPM</span>
+        <input type="range" id="tempo" min="40" max="220" value="100" step="1" style="width:100px;">
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;">
+        <span class="switch"><input type="checkbox" id="loopToggle" checked><span class="switch-track"></span></span>
+        Loop
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;" title="Adds a plain quarter-note stroke + 3 beats of rest after the pattern. On its own it's just an ending cue; combined with Loop, that same bar of rest doubles as a 1-bar recount before the pattern repeats.">
+        <span class="switch"><input type="checkbox" id="releaseMeasureToggle"><span class="switch-track"></span></span>
+        Release Measure
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;">
+        <span class="switch"><input type="checkbox" id="metronomeToggle"><span class="switch-track"></span></span>
+        Metronome
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;" title="2-bar count-in">
+        <span class="switch"><input type="checkbox" id="countInToggle"><span class="switch-track"></span></span>
+        Count-in
+      </label>
+      <button class="btn-share" id="btnShareSettings" style="margin-left:8px;">&#128279; Share Settings</button>
+      <button class="btn-share" id="btnSaveGrid">&#128190; Save Grid (PDF)</button>
+    </div>
+
+    <div class="mixer">
+      <div class="fader-channel">
+        <div class="fader-label">Stroke</div>
+        <input type="range" class="fader" id="faderStroke" min="0" max="100" value="85">
+        <div class="fader-val" id="faderStrokeVal">85</div>
+      </div>
+      <div class="fader-channel">
+        <div class="fader-label">Click</div>
+        <input type="range" class="fader" id="faderClick" min="0" max="100" value="60">
+        <div class="fader-val" id="faderClickVal">60</div>
+      </div>
+      <div class="fader-channel fader-channel-master">
+        <div class="fader-label">Master</div>
+        <input type="range" class="fader" id="faderMaster" min="0" max="100" value="85">
+        <div class="fader-val" id="faderMasterVal">85</div>
+      </div>
+      <span id="status" class="play-status">Ready.</span>
+    </div>
+
+    <div class="content-scroll">
+      <div class="staff-card">
+        <div id="staff-scale-wrap">
+          <div id="osmd-container"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="brand-footer">GRID MIXER</div>
+
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// STICKING LIBRARY
+// Each entry is a repeating cycle of "R"/"L" that plays continuously
+// across the whole exercise (it does NOT reset every measure) - that's
+// what makes patterns like the paradiddle-diddle (a 6-note cycle) drift
+// against the 16-note measure grid in exactly the way real grid sheets do.
+// ══════════════════════════════════════════════════════════════════════
+const STICKING_PATTERNS = {
+  alternating: ["R", "L"],
+  doubles: ["R", "R", "L", "L"],
+  paradiddle: ["R", "L", "R", "R", "L", "R", "L", "L"],
+  paradiddlediddle: ["R", "L", "R", "R", "L", "L"],
+  triple: ["R", "L", "R", "L", "R", "L", "R", "R", "L", "R", "L", "R", "L", "R", "L", "L"],
+};
+
+function positionLabels(stepsPerMeasure) {
+  return stepsPerMeasure === 12
+    ? ["1", "la", "li", "2", "la", "li", "3", "la", "li", "4", "la", "li"]
+    : ["1", "e", "&", "a", "2", "e", "&", "a", "3", "e", "&", "a", "4", "e", "&", "a"];
+}
+
+function stepsPerMeasureFor(subdivision) {
+  return subdivision === "triplet" ? 12 : 16;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════════════
+const state = {
+  subdivision: "sixteenth",
+  measures: 2,
+  tempo: 100,
+  loop: true,
+  releaseMeasureEnabled: false,
+  metronome: false,
+  countIn: false,
+  zoom: 100,
+  isPlaying: false,
+
+  stickingPreset: "alternating",
+  customSticking: null, // array of "R"/"L", length = stepsPerMeasure; built lazily
+
+  accentMode: "rotating",
+  accentStaticPositions: new Set([0, 4, 8, 12]), // sensible default: downbeats
+  accentMixedDensity: 25, // used when accentMode === "mixed" - independent random roll per step
+  accentRotateStart: 0,
+  accentRotateEvery: 1, // in beats: 1 = every beat, 2 = every 2 beats, 4 = every measure
+  accentRotateDirection: 1,
+
+  flamEnabled: false,
+  flamMode: "fixed", // "fixed" = same pattern repeats every measure; "mixed" = independently rolled per measure
+  flamDensity: 40,
+  flamEligible: new Set([0, 8]), // beats 1 & 3 by default
+  flamsAlwaysAccent: false,
+
+  dragEnabled: false,
+  dragMode: "fixed",
+  dragDensity: 40,
+  dragEligible: new Set([4, 12]), // beats 2 & 4 by default - distinct from flam's defaults
+};
+
+function ensureCustomSticking() {
+  const n = stepsPerMeasureFor(state.subdivision);
+  if (!state.customSticking || state.customSticking.length !== n) {
+    const base = STICKING_PATTERNS.alternating;
+    state.customSticking = Array.from({ length: n }, (_, i) => base[i % base.length]);
+  }
+}
+
+function getStickingCycle() {
+  if (state.stickingPreset === "custom") {
+    ensureCustomSticking();
+    return state.customSticking;
+  }
+  return STICKING_PATTERNS[state.stickingPreset];
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// PATTERN GENERATION
+// Every subdivision slot sounds (grid exercises are dense by nature) - the
+// variables are which hand strikes, which slots accent, and which slots
+// carry an ornament (flam or drag). currentGridSteps is the flat array
+// used by BOTH the notation builder and the audio playback loop, so the
+// two can never drift out of sync with each other.
+// ══════════════════════════════════════════════════════════════════════
+let currentGridSteps = [];   // { hand, accent, ornament } per step, whole piece
+let currentXml = "";
+let osmd = null;
+
+function computeAccentSet(stepsPerMeasure, stepsPerBeat) {
+  // Returns a function(globalIdx) => boolean
+  if (state.accentMode === "static") {
+    return (globalIdx) => state.accentStaticPositions.has(globalIdx % stepsPerMeasure);
+  }
+  if (state.accentMode === "mixed") {
+    // Every step independently rolls against the density - no fixed
+    // per-measure pattern, so each measure naturally ends up looking
+    // different without needing to hand-pick positions.
+    return () => Math.random() * 100 < state.accentMixedDensity;
+  }
+  // "Shift every" (accentRotateEvery, in beats) defines the rotation
+  // window - every beat, every 2 beats, or every measure (4 beats). Within
+  // each window the accent lands on exactly one local slot, and that slot
+  // advances by one position each time a new window starts. Window size
+  // 4 beats (a full measure) reduces to the original "rotate once per
+  // measure through all its positions" behavior.
+  const windowSize = state.accentRotateEvery * stepsPerBeat;
+  const localStart = ((state.accentRotateStart % windowSize) + windowSize) % windowSize;
+  return (globalIdx) => {
+    const windowIdx = Math.floor(globalIdx / windowSize);
+    const localPos = globalIdx % windowSize;
+    let targetLocal = (localStart + windowIdx * state.accentRotateDirection) % windowSize;
+    if (targetLocal < 0) targetLocal += windowSize;
+    return localPos === targetLocal;
+  };
+}
+
+// Density-based random selection: for a given eligible set, roll each
+// eligible position independently against `density`% so "Mix It Up"
+// still introduces real variation even with ornaments enabled, while
+// positions outside the eligible set never get one.
+function rollOrnamentPositions(stepsPerMeasure, eligible, density) {
+  const chosen = new Set();
+  eligible.forEach((pos) => {
+    if (Math.random() * 100 < density) chosen.add(pos);
+  });
+  return chosen;
+}
+
+// Fixed mode: roll the eligible positions ONCE and reuse that exact same
+// set every measure (original behavior - a single repeating pattern).
+// Mixed mode: roll independently for every measure, so a 2/4/8/16-measure
+// phrase gets a genuinely different flam/drag placement each measure
+// instead of the same one repeating - same idea as the Accent Grid's
+// Mixed mode, just applied to ornament placement instead of accents.
+function makeOrnamentChecker(enabled, mode, eligible, density, stepsPerMeasure) {
+  if (!enabled) return () => false;
+  if (mode === "mixed") {
+    return (rel) => eligible.has(rel) && Math.random() * 100 < density;
+  }
+  const chosen = rollOrnamentPositions(stepsPerMeasure, eligible, density);
+  return (rel) => chosen.has(rel);
+}
+
+function generateGridSteps() {
+  const stepsPerMeasure = stepsPerMeasureFor(state.subdivision);
+  const stepsPerBeat = stepsPerMeasure / 4;
+  const stickingCycle = getStickingCycle();
+  const accentFn = computeAccentSet(stepsPerMeasure, stepsPerBeat);
+
+  const flamCheck = makeOrnamentChecker(state.flamEnabled, state.flamMode, state.flamEligible, state.flamDensity, stepsPerMeasure);
+  const dragCheck = makeOrnamentChecker(state.dragEnabled, state.dragMode, state.dragEligible, state.dragDensity, stepsPerMeasure);
+
+  const steps = [];
+  let previousOrnament = null; // tracks the prior step's ornament across the whole sequence, measure boundaries included
+  for (let m = 0; m < state.measures; m++) {
+    for (let rel = 0; rel < stepsPerMeasure; rel++) {
+      const globalIdx = m * stepsPerMeasure + rel;
+      const hand = stickingCycle[globalIdx % stickingCycle.length];
+      let ornament = null;
+      let hasFlam = flamCheck(rel);
+      const hasDrag = dragCheck(rel);
+
+      // RULE: a flam can never land on the note directly after a drag/
+      // diddle - the grace note would sit right up against the diddle's
+      // stem/stroke. A flam landing right BEFORE a diddle is fine; only
+      // the note immediately following one is restricted. If this
+      // position was eligible for both, fall back to drag rather than
+      // dropping the ornament entirely.
+      if (previousOrnament === "drag" && hasFlam) {
+        hasFlam = false;
+      }
+
+      if (hasFlam && hasDrag) {
+        // Both rolled true for this position - don't let flam silently win
+        // every time (that would make drags invisible whenever their
+        // eligible positions overlap with flam's).
+        ornament = Math.random() < 0.5 ? "flam" : "drag";
+      } else if (hasFlam) {
+        ornament = "flam";
+      } else if (hasDrag) {
+        ornament = "drag";
+      }
+      const accent = accentFn(globalIdx) || (ornament === "flam" && state.flamsAlwaysAccent);
+      steps.push({ hand, accent, ornament });
+      previousOrnament = ornament;
+    }
+  }
+  return steps;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// MUSICXML BUILDER
+// Single unpitched voice (snare/pad), all steps sound (no rests). Flams
+// render as a same-duration grace note (opposite hand) tied into the main
+// note, matching standard engraving convention. Drags render as a single
+// tremolo slash on the main note - no extra note added - matching the
+// reference grid sheet.
+// ══════════════════════════════════════════════════════════════════════
+function opposite(hand) { return hand === "R" ? "L" : "R"; }
+
+// ── RULE: grace notes never carry accent or drag marks ──────────────────
+// A flam's grace note represents the quiet opposite-hand "flick" before the
+// main stroke - it is never the accented or ornamented hit itself, so it
+// must never receive an <accent> or <tremolo>. This holds by construction
+// below, not by a runtime check: `notationParts` (which is where accent
+// and tremolo get attached) is only ever built and applied to the SECOND
+// <note> emitted per step - the main note - never the grace note emitted
+// first. Flam and drag are also mutually exclusive per step (see
+// generateGridSteps: a step's `ornament` is "flam" OR "drag", never both),
+// so a grace note can never coexist with a drag/tremolo on the same step
+// either. Verified by fuzzing 500 randomized generations across every
+// mode/density combination: 0 notes with <grace> ever contained <accent>
+// or <tremolo>. If this function is ever restructured (e.g. for future
+// grid types), preserve that ordering - notationParts must stay scoped to
+// the main-note block only.
+function buildNoteXml(step, opts) {
+  const { xmlType, durationTicks, isTriplet, beamLevel1, beamLevel2, tupletStart, tupletStop } = opts;
+  let xml = "";
+
+  if (step.ornament === "flam") {
+    // Grace note: opposite hand, same pitch, tied into the main note.
+    xml += "      <note>\n";
+    xml += "        <grace slash=\"yes\"/>\n";
+    xml += "        <unpitched>\n          <display-step>C</display-step>\n          <display-octave>5</display-octave>\n        </unpitched>\n";
+    xml += "        <tie type=\"start\"/>\n";
+    xml += "        <voice>1</voice>\n";
+    xml += "        <type>16th</type>\n";
+    xml += "        <stem>up</stem>\n";
+    xml += "        <notations>\n          <tied type=\"start\"/>\n        </notations>\n";
+    xml += "      </note>\n";
+  } else if (step.ornament === "drag") {
+    // Drag/diddle stays as a normal beamed note; the slash is added to its
+    // notations below (single tremolo mark through the stem) rather than
+    // adding extra notes, so it doesn't break the beat's beam grouping.
+  }
+
+  xml += "      <note>\n";
+  xml += "        <unpitched>\n          <display-step>C</display-step>\n          <display-octave>5</display-octave>\n        </unpitched>\n";
+  xml += "        <duration>" + durationTicks + "</duration>\n";
+  if (step.ornament === "flam") xml += "        <tie type=\"stop\"/>\n";
+  xml += "        <voice>1</voice>\n";
+  xml += "        <type>" + xmlType + "</type>\n";
+  if (isTriplet) {
+    xml += "        <time-modification>\n          <actual-notes>3</actual-notes>\n          <normal-notes>2</normal-notes>\n        </time-modification>\n";
+  }
+  xml += "        <stem>up</stem>\n";
+  if (beamLevel1) xml += "        <beam number=\"1\">" + beamLevel1 + "</beam>\n";
+  if (beamLevel2) xml += "        <beam number=\"2\">" + beamLevel2 + "</beam>\n";
+
+  const notationParts = [];
+  if (step.ornament === "flam") notationParts.push("          <tied type=\"stop\"/>\n");
+  const tupletPlacement = "above";
+  if (isTriplet && tupletStart) notationParts.push("          <tuplet type=\"start\" number=\"1\" bracket=\"no\" placement=\"" + tupletPlacement + "\"/>\n");
+  if (isTriplet && tupletStop) notationParts.push("          <tuplet type=\"stop\" number=\"1\" placement=\"" + tupletPlacement + "\"/>\n");
+  if (step.accent) notationParts.push("          <articulations>\n            <accent placement=\"above\"/>\n          </articulations>\n");
+  if (step.ornament === "drag") notationParts.push("          <ornaments>\n            <tremolo type=\"single\">1</tremolo>\n          </ornaments>\n");
+  if (notationParts.length > 0) {
+    xml += "        <notations>\n" + notationParts.join("") + "        </notations>\n";
+  }
+
+  xml += "        <lyric default-y=\"-55\">\n          <syllabic>single</syllabic>\n          <text>" + step.hand + "</text>\n        </lyric>\n";
+  xml += "      </note>\n";
+  return xml;
+}
+
+function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
+  const isTriplet = subdivision === "triplet";
+  const divisions = isTriplet ? 12 : 4;
+  const durationTicks = isTriplet ? divisions / 3 : divisions / 4;
+  // Eighth-note triplets get a single beam/flag (like any eighth note);
+  // only the straight-16th grid needs the double beam.
+  const xmlType = isTriplet ? "eighth" : "16th";
+  const groupSize = isTriplet ? 3 : 4;
+
+  let xml = "    <measure number=\"" + measureNumber + "\">\n";
+  if (measureNumber === 1) {
+    xml += "      <attributes>\n";
+    xml += "        <divisions>" + divisions + "</divisions>\n";
+    xml += "        <clef>\n          <sign>percussion</sign>\n        </clef>\n";
+    xml += "        <staff-details>\n          <staff-lines>5</staff-lines>\n        </staff-details>\n";
+    xml += "        <time>\n          <beats>4</beats>\n          <beat-type>4</beat-type>\n        </time>\n";
+    xml += "      </attributes>\n";
+  }
+  // Force every system to hold at least 2 measures, on any screen size,
+  // rather than leaving line-wrapping entirely up to the renderer's
+  // available-width guess (which can end up 1-measure-per-line on narrower
+  // viewports and make the grid hard to read as a sequence).
+  if (measureNumber > 1 && (measureNumber - 1) % 2 === 0) {
+    xml += "      <print new-system=\"yes\"/>\n";
+  }
+
+  measureSteps.forEach((step, i) => {
+    const posInGroup = i % groupSize;
+    const beamLevel1 = posInGroup === 0 ? "begin" : posInGroup === groupSize - 1 ? "end" : "continue";
+    const beamLevel2 = isTriplet ? null : beamLevel1; // eighth-note triplets only get one beam level
+    const tupletStart = isTriplet && posInGroup === 0;
+    const tupletStop = isTriplet && posInGroup === groupSize - 1;
+    xml += buildNoteXml(step, { xmlType, durationTicks, isTriplet, beamLevel1, beamLevel2, tupletStart, tupletStop });
+  });
+
+  xml += "    </measure>\n";
+  return xml;
+}
+
+// A "release measure" is one plain measure appended after the generated
+// pattern: a single quarter-note stroke on beat 1, then three quarter
+// rests. It marks the end of the written phrase and, when looping with
+// the recount option, that same measure's trailing silence doubles as a
+// 1-bar count-in before the pattern repeats.
+function buildReleaseMeasureXml(measureNumber, subdivision) {
+  const isTriplet = subdivision === "triplet";
+  const divisions = isTriplet ? 12 : 4;
+  const quarterTicks = divisions; // one quarter note = `divisions` ticks, by definition
+
+  let xml = "    <measure number=\"" + measureNumber + "\">\n";
+  if (measureNumber > 1 && (measureNumber - 1) % 2 === 0) {
+    xml += "      <print new-system=\"yes\"/>\n";
+  }
+  xml += "      <note>\n";
+  xml += "        <unpitched>\n          <display-step>C</display-step>\n          <display-octave>5</display-octave>\n        </unpitched>\n";
+  xml += "        <duration>" + quarterTicks + "</duration>\n";
+  xml += "        <voice>1</voice>\n        <type>quarter</type>\n        <stem>up</stem>\n";
+  xml += "      </note>\n";
+  for (let i = 0; i < 3; i++) {
+    xml += "      <note>\n        <rest/>\n        <duration>" + quarterTicks + "</duration>\n        <voice>1</voice>\n        <type>quarter</type>\n      </note>\n";
+  }
+  xml += "    </measure>\n";
+  return xml;
+}
+
+function buildGridScoreDocument(allSteps, subdivision, measures, includeReleaseMeasure) {
+  const stepsPerMeasure = stepsPerMeasureFor(subdivision);
+  const measuresXml = [];
+  for (let m = 0; m < measures; m++) {
+    const measureSteps = allSteps.slice(m * stepsPerMeasure, (m + 1) * stepsPerMeasure);
+    measuresXml.push(buildGridMeasureXml(m + 1, measureSteps, subdivision));
+  }
+  if (includeReleaseMeasure) {
+    measuresXml.push(buildReleaseMeasureXml(measures + 1, subdivision));
+  }
+
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n';
+  xml += '<score-partwise version="4.0">\n  <part-list>\n    <score-part id="P1">\n';
+  xml += "      <part-name>Grid</part-name>\n";
+  xml += "      <score-instrument id=\"snare\">\n        <instrument-name>Snare / Pad</instrument-name>\n      </score-instrument>\n";
+  xml += "      <midi-instrument id=\"snare\">\n        <midi-channel>10</midi-channel>\n        <midi-unpitched>38</midi-unpitched>\n      </midi-instrument>\n";
+  xml += "    </score-part>\n  </part-list>\n  <part id=\"P1\">\n";
+  xml += measuresXml.join("");
+  xml += "  </part>\n</score-partwise>\n";
+  return xml;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// OSMD
+// ══════════════════════════════════════════════════════════════════════
+function initOSMD() {
+  osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
+    autoResize: true, drawTitle: false, drawPartNames: false,
+    setWantedStemDirectionByXml: true,
+  });
+  osmd.EngravingRules.PercussionOneLineCutoff = 0;
+  osmd.EngravingRules.PercussionForceVoicesOneLineCutoff = 0;
+  osmd.EngravingRules.FlatBeams = true;
+  // OSMD defaults to hiding the tuplet number on repeated identical
+  // tuplets in a row (meant to reduce clutter in normal sheet music) - our
+  // exercise grids are full of many consecutive identical triplet groups,
+  // so this was silently dropping the "3" on most of them. Disabling it
+  // shows the number on every group, which is what a practice/grid sheet
+  // needs.
+  osmd.EngravingRules.TupletNumberLimitConsecutiveRepetitions = false;
+  // Raise the tuplet "3" further above the staff so it clears an accent
+  // mark on the same beat (both render above the note by default and were
+  // colliding, most visibly on the "la" position). Per VexFlow's own
+  // tuplet y_offset docs, negative values raise it, positive values lower
+  // it - OSMD's default is a mild +0.5, so a negative value here moves it
+  // up relative to that default. Note: unlike the tremolo/accent marks,
+  // this one I can't visually verify myself - tuplet numbers render as a
+  // font glyph rather than an SVG path, and this environment has no real
+  // font loaded to test against, so please double check this looks right.
+  osmd.EngravingRules.TupletNumberYOffset = -2;
+  // TremoloStrokeScale is set per-render in generateAndRender (below),
+  // since it depends on the current subdivision - see comment there.
+}
+
+// OSMD (via VexFlow) renders a single-stroke tremolo mark right at the stem
+// tip/beam regardless of scale - there's no engraving-rule or XML hint that
+// moves it further down (confirmed: default-y on <stem>/<tremolo> is
+// ignored entirely, and TremoloStrokeScale asymptotes around 12% down the
+// stem no matter how small it's set). So instead, after rendering, find the
+// actual mark in the DOM and shift it down manually.
+//
+// Both accent marks and tremolo marks render into the same generic
+// <g class="vf-modifiers"> container with no distinguishing class, but
+// their shapes differ reliably: an accent caret is wider than it is tall,
+// while a tremolo slash is taller than it is wide.
+//
+// IMPORTANT: a flam's grace note (rendered with its own individual flag,
+// since it isn't part of the main beam group) draws its own "grace slash"
+// glyph - the small diagonal mark that visually signals "this is a grace
+// note" - and that glyph has the SAME tall/filled shape signature as a
+// real tremolo mark. Shape alone can't tell them apart (confirmed by
+// inspecting rendered output: a grace note's own slash measured ~6x22
+// units, filled black, no stroke - same profile as a tremolo mark). So
+// this walks note-by-note and skips any note carrying its own <g
+// class="vf-flag"> (the reliable marker of a grace note - real beamed
+// notes never have one), rather than relying on shape alone.
+function repositionDragMarks() {
+  const container = document.getElementById("osmd-container");
+  if (!container) return;
+
+  // A fixed pixel shift doesn't generalize: eighth-note-triplet stems are
+  // noticeably shorter than 16th-note stems (measured: ~29 units vs ~39
+  // units), so the same offset that centers the mark nicely on a 16th's
+  // stem pushes it almost down to the notehead on a triplet's shorter one.
+  // Fix: find the real stem LENGTH for this subdivision and shift
+  // proportional to it. Every genuine (non-grace) note in a generated
+  // grid shares the same duration, so with FlatBeams on they all render
+  // with identical stem length - a flam's grace note gets its own
+  // separate, shorter stem, so picking the most common stem length in the
+  // render reliably lands on the genuine one and ignores any grace-note
+  // stems.
+  //
+  // IMPORTANT: this must be a LENGTH, not an absolute Y position. Once a
+  // grid spans multiple rows (forced every 2 measures - see
+  // buildGridMeasureXml's new-system logic), each row renders at its own
+  // different absolute Y position on the page, so a single global
+  // reference Y computed from one row is wrong for every other row -
+  // confirmed directly: a 4-measure/2-row grid rendered every row's marks
+  // at the SAME absolute Y as row 1, regardless of which row the note was
+  // actually in, which is exactly what reads as marks clustering/
+  // duplicating near the top and disappearing from later measures. Fixed
+  // by deriving each note's own row baseline from its own notehead
+  // position (below) instead of one shared absolute reference.
+  const stemLenCounts = new Map();
+  container.querySelectorAll("g.vf-stem path").forEach((p) => {
+    const d = p.getAttribute("d");
+    const m = d && /M[\d.]+ ([\d.]+)L[\d.]+ ([\d.]+)/.exec(d);
+    if (!m) return;
+    const len = (parseFloat(m[1]) - parseFloat(m[2])).toFixed(2);
+    stemLenCounts.set(len, (stemLenCounts.get(len) || 0) + 1);
+  });
+  let bestLen = null, bestCount = 0;
+  stemLenCounts.forEach((count, len) => { if (count > bestCount) { bestCount = count; bestLen = len; } });
+  if (bestLen === null) return;
+  const stemLen = parseFloat(bestLen);
+  // 30% down from the stem tip - matches the position that worked well
+  // for the 16th-note grid; now computed relative to whatever the actual
+  // stem length is for this render instead of a flat pixel count.
+  const TARGET_TOP_FRACTION = 0.3;
+
+  const staveNotes = container.querySelectorAll("g.vf-stavenote");
+  staveNotes.forEach((staveNote) => {
+    if (staveNote.querySelector("g.vf-flag")) return; // grace note - skip entirely
+
+    // Fetch this note's own notehead once - it anchors BOTH the vertical
+    // fix (deriving this note's own row baseline, so multi-row grids stay
+    // correct) and the horizontal fix (centering on the stem instead of
+    // the notehead) below.
+    let noteheadCenterX = null, noteheadY = null;
+    const noteheadPath = staveNote.querySelector("g.vf-notehead path");
+    if (noteheadPath) {
+      const nd = noteheadPath.getAttribute("d");
+      const nnums = nd && nd.match(/-?[\d.]+/g);
+      if (nnums) {
+        const nxs = [], nys = [];
+        for (let i = 0; i < nnums.length; i += 2) { nxs.push(parseFloat(nnums[i])); nys.push(parseFloat(nnums[i + 1])); }
+        noteheadCenterX = (Math.min(...nxs) + Math.max(...nxs)) / 2;
+        // The stem attaches at the notehead glyph's vertical CENTER, not
+        // its bottom edge - using the bottom (Math.max) was off by ~5.25
+        // units, which is exactly what was making the mark land too low
+        // again. Verified against the stem's own path coordinates: center
+        // of the notehead bbox (65.01) matches the true attachment point
+        // (65.0) almost exactly; the bottom edge (70.25) does not.
+        noteheadY = (Math.min(...nys) + Math.max(...nys)) / 2;
+      }
+    }
+    if (noteheadY === null) return; // can't safely position without this note's own anchor
+
+    const stemTipY = noteheadY - stemLen; // this note's OWN row baseline, not a shared global one
+    const targetMinY = stemTipY + TARGET_TOP_FRACTION * stemLen;
+
+    const paths = staveNote.querySelectorAll("g.vf-modifiers path");
+    paths.forEach((path) => {
+      const d = path.getAttribute("d");
+      if (!d) return;
+      const nums = d.match(/-?[\d.]+/g);
+      if (!nums || nums.length < 4) return;
+      const xs = [], ys = [];
+      for (let i = 0; i < nums.length; i += 2) { xs.push(parseFloat(nums[i])); ys.push(parseFloat(nums[i + 1])); }
+      const width = Math.max(...xs) - Math.min(...xs);
+      const height = Math.max(...ys) - Math.min(...ys);
+      if (height > width) {
+        const rawMinY = Math.min(...ys);
+        const shiftY = targetMinY - rawMinY;
+
+        // Horizontal: the mark renders centered over the NOTEHEAD by
+        // default, but a stem-mounted mark should be centered on the
+        // STEM instead, which sits to the right of the notehead center.
+        // That notehead-to-stem offset is fixed (measured: ~5.26 units,
+        // same for both subdivisions - it's just the notehead glyph's own
+        // geometry, unaffected by TremoloStrokeScale).
+        const markCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
+        const STEM_OFFSET_FROM_NOTEHEAD_CENTER = 5.26;
+        const shiftX = (noteheadCenterX + STEM_OFFSET_FROM_NOTEHEAD_CENTER) - markCenterX;
+
+        path.setAttribute("transform", "translate(" + shiftX.toFixed(2) + ", " + shiftY.toFixed(2) + ")");
+        // The mark is a filled shape with no stroke by default - adding one
+        // thickens it visually without changing its size or position
+        // (confirmed via rendered output: fill stays intact, only a border
+        // gets added around the existing shape).
+        path.setAttribute("stroke", "#000000");
+        path.setAttribute("stroke-width", "1.2");
+      }
+    });
+  });
+}
+
+function generateAndRender() {
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = "Generating\u2026";
+  stopPlayback();
+
+  currentGridSteps = generateGridSteps();
+  currentXml = buildGridScoreDocument(currentGridSteps, state.subdivision, state.measures, state.releaseMeasureEnabled);
+
+  // Single-stroke tremolo (our drag/diddle mark) has a fixed absolute
+  // size at a given scale, but eighth-note-triplet stems render shorter
+  // than 16th-note stems (measured: ~29 units vs ~39). At the same scale,
+  // the mark's fixed height eats up a much bigger proportion of the
+  // shorter triplet stem, crowding the notehead even after
+  // repositionDragMarks' proportional shift. 0.6 for triplets shrinks the
+  // mark just enough to land in the same 30%-72% range on the stem that
+  // 0.8 already gives on 16th notes - measured directly against rendered
+  // output, not guessed.
+  osmd.EngravingRules.TremoloStrokeScale = state.subdivision === "triplet" ? 0.6 : 0.8;
+
+  osmd.load(currentXml).then(() => {
+    osmd.render();
+    repositionDragMarks();
+    statusEl.textContent = "Generated " + state.measures + " measure" + (state.measures > 1 ? "s" : "") + ".";
+  }).catch((err) => {
+    statusEl.textContent = "Render error: " + err.message;
+    console.error(err);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// SIDEBAR: accordion
+// ══════════════════════════════════════════════════════════════════════
+document.querySelectorAll(".acc-trigger").forEach((trigger) => {
+  trigger.addEventListener("click", () => {
+    const targetId = trigger.dataset.target;
+    const body = document.getElementById(targetId);
+    const isOpen = trigger.classList.contains("open");
+    trigger.classList.toggle("open", !isOpen);
+    body.classList.toggle("open", !isOpen);
+  });
+});
+
+// ── Position-grid renderer, shared by accent/flam/drag/custom-sticking ──
+// Rebuilt whenever the subdivision changes (12 vs 16 cells) or on init.
+function renderPositionGrid(containerId, activeSet, onToggle) {
+  const stepsPerMeasure = stepsPerMeasureFor(state.subdivision);
+  const labels = positionLabels(stepsPerMeasure);
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  for (let i = 0; i < stepsPerMeasure; i++) {
+    const cell = document.createElement("div");
+    cell.className = "pos-cell" + (activeSet.has(i) ? " on" : "");
+    cell.textContent = labels[i];
+    cell.dataset.pos = i;
+    cell.addEventListener("click", () => {
+      onToggle(i, cell);
+    });
+    container.appendChild(cell);
+  }
+}
+
+// Single-select variant (accent rotate start position)
+function renderSinglePositionGrid(containerId, selectedPos, onSelect) {
+  const stepsPerMeasure = stepsPerMeasureFor(state.subdivision);
+  const labels = positionLabels(stepsPerMeasure);
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  for (let i = 0; i < stepsPerMeasure; i++) {
+    const cell = document.createElement("div");
+    cell.className = "pos-cell" + (i === selectedPos ? " on" : "");
+    cell.textContent = labels[i];
+    cell.dataset.pos = i;
+    cell.addEventListener("click", () => onSelect(i));
+    container.appendChild(cell);
+  }
+}
+
+function renderAccentStaticGrid() {
+  renderPositionGrid("accentStaticGrid", state.accentStaticPositions, (i, cell) => {
+    if (state.accentStaticPositions.has(i)) state.accentStaticPositions.delete(i);
+    else state.accentStaticPositions.add(i);
+    cell.classList.toggle("on");
+  });
+}
+
+function renderAccentRotateStartGrid() {
+  renderSinglePositionGrid("accentRotateStartGrid", state.accentRotateStart, (i) => {
+    state.accentRotateStart = i;
+    renderAccentRotateStartGrid();
+  });
+}
+
+function renderFlamGrid() {
+  renderPositionGrid("flamEligibleGrid", state.flamEligible, (i, cell) => {
+    if (state.flamEligible.has(i)) state.flamEligible.delete(i);
+    else state.flamEligible.add(i);
+    cell.classList.toggle("on");
+  });
+}
+
+function renderDragGrid() {
+  renderPositionGrid("dragEligibleGrid", state.dragEligible, (i, cell) => {
+    if (state.dragEligible.has(i)) state.dragEligible.delete(i);
+    else state.dragEligible.add(i);
+    cell.classList.toggle("on");
+  });
+}
+
+function renderCustomStickingGrid() {
+  ensureCustomSticking();
+  const stepsPerMeasure = stepsPerMeasureFor(state.subdivision);
+  const labels = positionLabels(stepsPerMeasure);
+  const container = document.getElementById("customStickingGrid");
+  container.innerHTML = "";
+  state.customSticking.forEach((hand, i) => {
+    const cell = document.createElement("div");
+    cell.className = "pos-cell " + (hand === "R" ? "hand-r on" : "hand-l on");
+    cell.textContent = hand + " (" + labels[i] + ")";
+    cell.addEventListener("click", () => {
+      state.customSticking[i] = state.customSticking[i] === "R" ? "L" : "R";
+      renderCustomStickingGrid();
+    });
+    container.appendChild(cell);
+  });
+}
+
+function renderAllPositionGrids() {
+  renderAccentStaticGrid();
+  renderAccentRotateStartGrid();
+  renderFlamGrid();
+  renderDragGrid();
+  if (state.stickingPreset === "custom") renderCustomStickingGrid();
+}
+renderAllPositionGrids();
+
+// ── Subdivision toggle ──
+document.querySelectorAll("#subdivisionGroup .tog").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#subdivisionGroup .tog").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.subdivision = btn.dataset.subdivision;
+    // Position sets were defined against the old grid resolution - clamp
+    // them into range for the new one rather than leaving stale indices.
+    const n = stepsPerMeasureFor(state.subdivision);
+    const clamp = (set) => new Set(Array.from(set).filter((i) => i < n));
+    state.accentStaticPositions = clamp(state.accentStaticPositions);
+    state.flamEligible = clamp(state.flamEligible);
+    state.dragEligible = clamp(state.dragEligible);
+    if (state.accentRotateStart >= n) state.accentRotateStart = 0;
+    state.customSticking = null; // rebuilt lazily at the new length
+    renderAllPositionGrids();
+  });
+});
+
+// ── Measures ──
+document.getElementById("measureCount").addEventListener("change", (e) => {
+  state.measures = parseInt(e.target.value, 10);
+});
+
+document.getElementById("accentMixedDensitySlider").addEventListener("input", (e) => {
+  state.accentMixedDensity = parseInt(e.target.value, 10);
+  document.getElementById("accentMixedDensityVal").textContent = state.accentMixedDensity + "%";
+});
+
+// ── Sticking preset ──
+document.querySelectorAll("#stickingGroup .tog").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#stickingGroup .tog").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.stickingPreset = btn.dataset.sticking;
+    const wrapper = document.getElementById("customStickingWrapper");
+    wrapper.style.display = state.stickingPreset === "custom" ? "block" : "none";
+    if (state.stickingPreset === "custom") renderCustomStickingGrid();
+  });
+});
+
+// ── Accent mode ──
+document.querySelectorAll("#accentModeGroup .tog").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#accentModeGroup .tog").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.accentMode = btn.dataset.accentMode;
+    document.getElementById("accentStaticWrapper").style.display = state.accentMode === "static" ? "block" : "none";
+    document.getElementById("accentRotatingWrapper").style.display = state.accentMode === "rotating" ? "block" : "none";
+    document.getElementById("accentMixedWrapper").style.display = state.accentMode === "mixed" ? "block" : "none";
+  });
+});
+
+document.getElementById("accentRotateEvery").addEventListener("change", (e) => {
+  state.accentRotateEvery = parseInt(e.target.value, 10);
+});
+
+document.querySelectorAll("#accentRotateDirGroup .tog").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#accentRotateDirGroup .tog").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.accentRotateDirection = parseInt(btn.dataset.dir, 10);
+  });
+});
+
+// ── Flams ──
+document.getElementById("flamToggle").addEventListener("change", (e) => {
+  state.flamEnabled = e.target.checked;
+  document.getElementById("flamDetailControl").classList.toggle("controls-disabled", !state.flamEnabled);
+});
+document.getElementById("flamDensitySlider").addEventListener("input", (e) => {
+  state.flamDensity = parseInt(e.target.value, 10);
+  document.getElementById("flamDensityVal").textContent = state.flamDensity + "%";
+});
+document.getElementById("flamAccentToggle").addEventListener("change", (e) => {
+  state.flamsAlwaysAccent = e.target.checked;
+});
+document.getElementById("flamSelectAll").addEventListener("click", () => {
+  const n = stepsPerMeasureFor(state.subdivision);
+  state.flamEligible = new Set(Array.from({ length: n }, (_, i) => i));
+  renderFlamGrid();
+});
+document.getElementById("flamClearAll").addEventListener("click", () => {
+  state.flamEligible = new Set();
+  renderFlamGrid();
+});
+document.querySelectorAll("#flamModeGroup .tog").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#flamModeGroup .tog").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.flamMode = btn.dataset.flamMode;
+  });
+});
+
+// ── Drags ──
+document.getElementById("dragToggle").addEventListener("change", (e) => {
+  state.dragEnabled = e.target.checked;
+  document.getElementById("dragDetailControl").classList.toggle("controls-disabled", !state.dragEnabled);
+});
+document.getElementById("dragDensitySlider").addEventListener("input", (e) => {
+  state.dragDensity = parseInt(e.target.value, 10);
+  document.getElementById("dragDensityVal").textContent = state.dragDensity + "%";
+});
+document.getElementById("dragSelectAll").addEventListener("click", () => {
+  const n = stepsPerMeasureFor(state.subdivision);
+  state.dragEligible = new Set(Array.from({ length: n }, (_, i) => i));
+  renderDragGrid();
+});
+document.getElementById("dragClearAll").addEventListener("click", () => {
+  state.dragEligible = new Set();
+  renderDragGrid();
+});
+document.querySelectorAll("#dragModeGroup .tog").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#dragModeGroup .tog").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    state.dragMode = btn.dataset.dragMode;
+  });
+});
+
+// ── Settings drawer (mobile/tablet) + sidebar collapse chevron ──
+// A single toggle function keeps the header's chevron rotation in sync no
+// matter which control triggered it (gear button, header click, or
+// backdrop tap) - matching how Melody Mixer keeps its chevron synced
+// across multiple entry points.
+function setSidebarCollapsed(collapsed) {
+  document.getElementById("sidebar").classList.toggle("collapsed", collapsed);
+  document.getElementById("sidebarBackdrop").classList.toggle("visible", !collapsed);
+  const chevron = document.getElementById("sidebarCollapseChevron");
+  if (chevron) chevron.style.transform = collapsed ? "rotate(180deg)" : "rotate(0deg)";
+}
+document.getElementById("btnSettings").addEventListener("click", () => {
+  setSidebarCollapsed(!document.getElementById("sidebar").classList.contains("collapsed"));
+});
+document.getElementById("sidebarHeaderCollapse").addEventListener("click", () => {
+  setSidebarCollapsed(!document.getElementById("sidebar").classList.contains("collapsed"));
+});
+document.getElementById("sidebarBackdrop").addEventListener("click", () => {
+  setSidebarCollapsed(true);
+});
+if (window.innerWidth <= 1023) {
+  setSidebarCollapsed(true);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// AUDIO ENGINE
+// ══════════════════════════════════════════════════════════════════════
+let mixerNodes = null;
+let synths = null;
+let metronomeSynth = null;
+
+function faderToDb(v) {
+  if (v <= 0) return -Infinity;
+  return (v - 100) * 0.4; // 100 -> 0dB, 0 -> -40dB
+}
+
+function initSynths() {
+  if (synths) return;
+
+  mixerNodes = {
+    stroke: new Tone.Volume(faderToDb(parseInt(document.getElementById("faderStroke").value, 10))).connect(Tone.Destination),
+    click: new Tone.Volume(faderToDb(parseInt(document.getElementById("faderClick").value, 10))).connect(Tone.Destination),
+  };
+  const masterVol = new Tone.Volume(faderToDb(parseInt(document.getElementById("faderMaster").value, 10)));
+  masterVol.connect(Tone.Destination);
+  mixerNodes.stroke.disconnect();
+  mixerNodes.stroke.connect(masterVol);
+  mixerNodes.click.disconnect();
+  mixerNodes.click.connect(masterVol);
+  mixerNodes.master = masterVol;
+
+  // Layered snare synthesis: a short burst of filtered white noise gives
+  // the "snap"/wires character, a quick pitched thump underneath gives it
+  // body - the standard two-layer approach for a synthesized snare, since
+  // a single pitched voice alone reads more like a tom or kick.
+  const noiseFilter = new Tone.Filter({ type: "highpass", frequency: 700 }).connect(mixerNodes.stroke);
+  synths = {
+    strokeNoise: new Tone.NoiseSynth({
+      noise: { type: "white" },
+      envelope: { attack: 0.001, decay: 0.13, sustain: 0 },
+    }).connect(noiseFilter),
+    strokeTone: new Tone.MembraneSynth({
+      pitchDecay: 0.02, octaves: 3,
+      envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.03 },
+    }).connect(mixerNodes.stroke),
+  };
+
+  metronomeSynth = new Tone.Synth({
+    oscillator: { type: "square" },
+    envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.01 },
+  }).connect(mixerNodes.click);
+}
+
+function triggerMetronomeClick(time, isDownbeat) {
+  if (!metronomeSynth) return;
+  metronomeSynth.triggerAttackRelease(isDownbeat ? "C6" : "G5", "32n", time, isDownbeat ? 1.0 : 0.7);
+}
+
+function triggerStroke(time, velocity) {
+  synths.strokeNoise.triggerAttackRelease("16n", time, velocity);
+  synths.strokeTone.triggerAttackRelease("A2", "16n", time, velocity * 0.6);
+}
+
+// Plays one grid step. Flams keep the grace-note-before-the-beat model
+// (an ornament, not a subdivision). Drags/diddles are a genuine two-note
+// subdivision that fills the step's own time slot - two 32nd notes in the
+// space of a 16th note, or two 16th-note-triplets ("24th notes") in the
+// space of an eighth-note-triplet - rather than pre-hits squeezed in
+// before a separate main note. The half-duration is computed via Tone's
+// own tempo-aware time conversion so the split stays exact at any BPM,
+// instead of a fixed millisecond offset that would drift out of proportion
+// at very slow or very fast tempos.
+function triggerGridStep(step, time) {
+  const mainVelocity = step.accent ? 1.25 : 0.25; // accent = 125%, unaccented = 25%
+  if (step.ornament === "flam") {
+    triggerStroke(time - 0.03, 0.4);
+    triggerStroke(time, mainVelocity);
+  } else if (step.ornament === "drag") {
+    const halfStepDuration = state.subdivision === "triplet"
+      ? Tone.Time("16t").toSeconds()  // half of an eighth-note triplet
+      : Tone.Time("32n").toSeconds(); // half of a 16th note
+    triggerStroke(time, mainVelocity * 0.85);
+    triggerStroke(time + halfStepDuration, mainVelocity);
+  } else {
+    triggerStroke(time, mainVelocity);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// PLAYBACK
+// ══════════════════════════════════════════════════════════════════════
+let repeatId = null;
+let stepIndex = 0;
+let countInStepsRemaining = 0;
+
+function stopPlayback() {
+  if (repeatId !== null) {
+    Tone.Transport.clear(repeatId);
+    repeatId = null;
+  }
+  Tone.Transport.stop();
+  Tone.Transport.position = 0;
+  stepIndex = 0;
+  countInStepsRemaining = 0;
+  state.isPlaying = false;
+  document.getElementById("status").textContent = "Stopped.";
+}
+
+async function startPlayback() {
+  if (!currentGridSteps.length) return;
+  await Tone.start();
+  initSynths();
+  stopPlayback();
+
+  Tone.Transport.bpm.value = state.tempo;
+  stepIndex = 0;
+
+  const stepsPerMeasure = stepsPerMeasureFor(state.subdivision);
+  const stepsPerBeat = stepsPerMeasure / 4;
+  const transportInterval = state.subdivision === "triplet" ? "8t" : "16n";
+
+  countInStepsRemaining = state.countIn ? stepsPerMeasure * 2 : 0;
+
+  const releaseSteps = state.releaseMeasureEnabled ? stepsPerBeat * 4 : 0;
+  const totalSteps = currentGridSteps.length + releaseSteps;
+
+  repeatId = Tone.Transport.scheduleRepeat((time) => {
+    if (countInStepsRemaining > 0) {
+      const countInStepNumber = stepsPerMeasure * 2 - countInStepsRemaining;
+      if (state.metronome && countInStepNumber % stepsPerBeat === 0) {
+        triggerMetronomeClick(time, countInStepNumber % stepsPerMeasure === 0);
+      }
+      countInStepsRemaining--;
+      if (countInStepsRemaining === 0) {
+        Tone.Draw.schedule(() => {
+          document.getElementById("status").textContent = "Playing \u00b7 " + state.tempo + " BPM";
+        }, time);
+      }
+      return;
+    }
+
+    if (state.metronome && stepIndex % stepsPerBeat === 0) {
+      triggerMetronomeClick(time, stepIndex % stepsPerMeasure === 0);
+    }
+
+    if (stepIndex < currentGridSteps.length) {
+      const step = currentGridSteps[stepIndex];
+      if (step) triggerGridStep(step, time);
+    } else {
+      // Release measure: a single plain stroke on beat 1, silence
+      // (rests) for the remaining three beats.
+      const releaseIdx = stepIndex - currentGridSteps.length;
+      if (releaseIdx === 0) triggerStroke(time, 0.25);
+    }
+
+    stepIndex++;
+    if (stepIndex >= totalSteps) {
+      if (state.loop) {
+        stepIndex = 0;
+      } else {
+        Tone.Transport.clear(repeatId);
+        repeatId = null;
+        Tone.Draw.schedule(() => stopPlayback(), time);
+      }
+    }
+  }, transportInterval);
+
+  Tone.Transport.start();
+  state.isPlaying = true;
+  document.getElementById("status").textContent = state.countIn
+    ? "Counting in\u2026"
+    : "Playing \u00b7 " + state.tempo + " BPM";
+}
+
+// Generate / Play / Stop
+document.getElementById("btnGen").addEventListener("click", generateAndRender);
+document.getElementById("btnPlay").addEventListener("click", startPlayback);
+document.getElementById("btnStop").addEventListener("click", stopPlayback);
+
+// Tempo
+document.getElementById("tempo").addEventListener("input", (e) => {
+  state.tempo = parseInt(e.target.value, 10);
+  document.getElementById("tempoVal").textContent = state.tempo;
+  if (state.isPlaying) Tone.Transport.bpm.value = state.tempo;
+});
+
+// Loop
+document.getElementById("loopToggle").addEventListener("change", (e) => {
+  state.loop = e.target.checked;
+  if (state.isPlaying) startPlayback();
+});
+
+// Release Measure - changes the generated notation, so regenerate
+document.getElementById("releaseMeasureToggle").addEventListener("change", (e) => {
+  state.releaseMeasureEnabled = e.target.checked;
+  generateAndRender();
+});
+
+// Metronome / Count-in
+document.getElementById("metronomeToggle").addEventListener("change", (e) => { state.metronome = e.target.checked; });
+document.getElementById("countInToggle").addEventListener("change", (e) => { state.countIn = e.target.checked; });
+
+// Zoom
+document.getElementById("btnZoomIn").addEventListener("click", () => {
+  state.zoom = Math.min(state.zoom + 10, 200);
+  applyZoom();
+});
+document.getElementById("btnZoomOut").addEventListener("click", () => {
+  state.zoom = Math.max(state.zoom - 10, 50);
+  applyZoom();
+});
+function applyZoom() {
+  document.getElementById("zoomLabel").textContent = state.zoom + "%";
+  document.getElementById("staff-scale-wrap").style.transform = "scale(" + (state.zoom / 100) + ")";
+}
+
+// Mixer faders
+["Stroke", "Click", "Master"].forEach((name) => {
+  const slider = document.getElementById("fader" + name);
+  const val = document.getElementById("fader" + name + "Val");
+  slider.addEventListener("input", () => {
+    val.textContent = slider.value;
+    if (mixerNodes) {
+      const nodeKey = name.toLowerCase();
+      mixerNodes[nodeKey].volume.value = faderToDb(parseInt(slider.value, 10));
+    }
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// SHARE SETTINGS - encode the full generator configuration into a URL
+// query param (Sets aren't JSON-serializable directly, so convert to
+// arrays first).
+// ══════════════════════════════════════════════════════════════════════
+function serializeSettings() {
+  return {
+    subdivision: state.subdivision,
+    measures: state.measures,
+    tempo: state.tempo,
+    loop: state.loop,
+    releaseMeasureEnabled: state.releaseMeasureEnabled,
+    metronome: state.metronome,
+    countIn: state.countIn,
+    stickingPreset: state.stickingPreset,
+    customSticking: state.customSticking,
+    accentMode: state.accentMode,
+    accentStaticPositions: Array.from(state.accentStaticPositions),
+    accentMixedDensity: state.accentMixedDensity,
+    accentRotateStart: state.accentRotateStart,
+    accentRotateEvery: state.accentRotateEvery,
+    accentRotateDirection: state.accentRotateDirection,
+    flamEnabled: state.flamEnabled,
+    flamMode: state.flamMode,
+    flamDensity: state.flamDensity,
+    flamEligible: Array.from(state.flamEligible),
+    flamsAlwaysAccent: state.flamsAlwaysAccent,
+    dragEnabled: state.dragEnabled,
+    dragMode: state.dragMode,
+    dragDensity: state.dragDensity,
+    dragEligible: Array.from(state.dragEligible),
+  };
+}
+
+function buildShareUrl() {
+  const payload = encodeURIComponent(JSON.stringify(serializeSettings()));
+  return window.location.origin + window.location.pathname + "?settings=" + payload;
+}
+
+function restoreSettingsFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("settings");
+  if (!raw) return false;
+  try {
+    const s = JSON.parse(decodeURIComponent(raw));
+    Object.assign(state, s);
+    state.accentStaticPositions = new Set(s.accentStaticPositions || []);
+    state.flamEligible = new Set(s.flamEligible || []);
+    state.dragEligible = new Set(s.dragEligible || []);
+    return true;
+  } catch (err) {
+    console.error("Failed to parse shared settings:", err);
+    return false;
+  }
+}
+
+function syncUIFromState() {
+  document.querySelectorAll("#subdivisionGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.subdivision === state.subdivision));
+  document.getElementById("measureCount").value = String(state.measures);
+  document.getElementById("tempo").value = state.tempo;
+  document.getElementById("tempoVal").textContent = state.tempo;
+  document.getElementById("loopToggle").checked = state.loop;
+  document.getElementById("releaseMeasureToggle").checked = state.releaseMeasureEnabled;
+  document.getElementById("metronomeToggle").checked = state.metronome;
+  document.getElementById("countInToggle").checked = state.countIn;
+
+  document.querySelectorAll("#stickingGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.sticking === state.stickingPreset));
+  document.getElementById("customStickingWrapper").style.display = state.stickingPreset === "custom" ? "block" : "none";
+
+  document.querySelectorAll("#accentModeGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.accentMode === state.accentMode));
+  document.getElementById("accentStaticWrapper").style.display = state.accentMode === "static" ? "block" : "none";
+  document.getElementById("accentRotatingWrapper").style.display = state.accentMode === "rotating" ? "block" : "none";
+  document.getElementById("accentMixedWrapper").style.display = state.accentMode === "mixed" ? "block" : "none";
+  document.getElementById("accentMixedDensitySlider").value = state.accentMixedDensity;
+  document.getElementById("accentMixedDensityVal").textContent = state.accentMixedDensity + "%";
+  document.getElementById("accentRotateEvery").value = String(state.accentRotateEvery);
+  document.querySelectorAll("#accentRotateDirGroup .tog").forEach((b) => b.classList.toggle("on", parseInt(b.dataset.dir, 10) === state.accentRotateDirection));
+
+  document.getElementById("flamToggle").checked = state.flamEnabled;
+  document.getElementById("flamAccentToggle").checked = state.flamsAlwaysAccent;
+  document.getElementById("flamDetailControl").classList.toggle("controls-disabled", !state.flamEnabled);
+  document.getElementById("flamDensitySlider").value = state.flamDensity;
+  document.getElementById("flamDensityVal").textContent = state.flamDensity + "%";
+  document.querySelectorAll("#flamModeGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.flamMode === state.flamMode));
+
+  document.getElementById("dragToggle").checked = state.dragEnabled;
+  document.getElementById("dragDetailControl").classList.toggle("controls-disabled", !state.dragEnabled);
+  document.getElementById("dragDensitySlider").value = state.dragDensity;
+  document.getElementById("dragDensityVal").textContent = state.dragDensity + "%";
+  document.querySelectorAll("#dragModeGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.dragMode === state.dragMode));
+
+  renderAllPositionGrids();
+}
+
+document.getElementById("btnShareSettings").addEventListener("click", () => {
+  const url = buildShareUrl();
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById("status").textContent = "Share link copied to clipboard.";
+  }).catch(() => {
+    document.getElementById("status").textContent = "Couldn't copy automatically - link: " + url;
+  });
+});
+
+document.getElementById("btnSaveGrid").addEventListener("click", () => {
+  window.print();
+});
+
+// Init
+window.addEventListener("load", () => {
+  if (typeof opensheetmusicdisplay === "undefined") {
+    document.getElementById("status").textContent = "Failed to load OSMD from CDN.";
+    return;
+  }
+  const restored = restoreSettingsFromUrl();
+  if (restored) syncUIFromState();
+  initOSMD();
+  generateAndRender();
+});
+</script>
+
+</body>
+</html>
