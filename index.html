@@ -69,7 +69,7 @@ body {
   transition: max-height 0.25s ease;
   padding: 0 16px;
 }
-.acc-body.open { max-height: 900px; padding: 4px 16px 16px; }
+.acc-body.open { max-height: 70vh; overflow-y: auto; padding: 4px 16px 16px; }
 
 /* ── Form controls inside sidebar ── */
 .field-label {
@@ -79,6 +79,36 @@ body {
 }
 .field-label:first-child { margin-top: 0; }
 .field-hint { font-size: 11px; color: #999; margin-bottom: 10px; line-height: 1.4; }
+.sub-label {
+  font-size: 9px; color: #9B9B9B; text-transform: uppercase;
+  letter-spacing: .1em; margin: 12px 0 6px; font-weight: 700;
+}
+.sub-label:first-child { margin-top: 0; }
+
+/* ── Nested category dropdowns (used within Rudiments) ── */
+.rud-cat-section { margin-top: 8px; }
+.rud-cat-section:first-child { margin-top: 0; }
+.rud-cat-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; background: #FAFAFA; border: 1px solid #E0E0E0; border-radius: 4px;
+  cursor: pointer; font-size: 10px; font-weight: 700; color: #6B6B6B;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.rud-cat-trigger:hover { background: #F4F4F4; color: #1A1A1A; }
+.rud-cat-trigger.open { color: #1A1A1A; background: #F0F0F0; border-radius: 4px 4px 0 0; border-bottom: none; }
+.rud-cat-chevron {
+  width: 12px; height: 12px; flex-shrink: 0; fill: none;
+  stroke: currentColor; stroke-width: 2.5;
+  stroke-linecap: round; stroke-linejoin: round;
+  transition: transform 0.2s ease;
+}
+.rud-cat-trigger.open .rud-cat-chevron { transform: rotate(180deg); }
+.rud-cat-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.2s ease;
+  border: 1px solid #E0E0E0; border-top: none; border-radius: 0 0 4px 4px;
+}
+.rud-cat-body.open { max-height: 50vh; overflow-y: auto; padding: 8px 10px; }
 select, input[type="number"] {
   width: 100%; font-size: 13px; padding: 6px 8px;
   border: 1px solid #D0D0D0; border-radius: 3px;
@@ -92,6 +122,7 @@ select, input[type="number"] {
 }
 .tog:hover { border-color: #999; color: #1A1A1A; }
 .tog.on { background: #1A1A1A; color: #fff; border-color: #1A1A1A; }
+.tog.disabled { opacity: 0.35; pointer-events: none; cursor: default; }
 .controls-disabled { opacity: 0.35; pointer-events: none; }
 
 /* Position grid (accent / flam / drag eligibility, custom sticking) */
@@ -147,8 +178,6 @@ select, input[type="number"] {
 .btn-zoom { padding: 8px 11px; }
 .settings-icon { width: 14px; height: 14px; fill: currentColor; }
 
-.play-status-wrap { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-
 /* ── Mixer (horizontal channel strips) ── */
 .mixer {
   display: flex; align-items: center; gap: 28px;
@@ -166,7 +195,6 @@ input[type="range"].fader {
   accent-color: #1A1A1A;
 }
 .fader-val { font-size: 11px; color: #6B6B6B; min-width: 22px; text-align: center; }
-.play-status { font-size: 12px; color: #6B6B6B; margin-left: auto; align-self: center; }
 
 /* ── Share link bar ── */
 .share-bar {
@@ -196,6 +224,17 @@ input[type="range"].fader {
   padding: 20px; max-width: 1600px; width: 100%;
 }
 #staff-scale-wrap { transform-origin: top left; }
+.status-bar {
+  display: flex; align-items: baseline; flex-wrap: wrap;
+  gap: 4px 14px; padding: 10px 4px 0; max-width: 1600px;
+}
+.play-status { font-size: 12px; color: #6B6B6B; }
+.shortcut-hint { font-size: 11px; color: #999; }
+.shortcut-hint kbd {
+  font-family: inherit; font-size: 10px; color: #6B6B6B;
+  background: #F0F0F0; border: 1px solid #D0D0D0; border-radius: 3px;
+  padding: 1px 5px; margin: 0 1px;
+}
 
 /* ── Bottom bar ── */
 .bottom-bar {
@@ -235,8 +274,6 @@ input[type="range"].fader {
   .btn-settings, .btn-gen, .btn-play, .btn-stop, .btn-zoom {
     padding: 10px 10px; font-size: 11px;
   }
-  .play-status-wrap { margin-left: 0; width: 100%; order: 10; }
-
   .mixer { padding: 10px 12px; gap: 14px; overflow-x: auto; flex-wrap: wrap; }
   input[type="range"].fader { width: 80px; height: 26px; }
   .fader-channel-master { padding-left: 10px; }
@@ -254,7 +291,7 @@ input[type="range"].fader {
 }
 
 @media print {
-  .sidebar, .top-bar, .mixer, .bottom-bar, .brand-footer { display: none !important; }
+  .sidebar, .top-bar, .mixer, .bottom-bar, .brand-footer, .status-bar { display: none !important; }
   body { background: #fff; padding: 0; height: auto; overflow: visible; }
   .app { height: auto; display: block; }
   .main { height: auto; overflow: visible; }
@@ -438,6 +475,27 @@ input[type="range"].fader {
       </div>
     </div>
 
+    <div class="acc-section">
+      <button class="acc-trigger" data-target="acc-rudiments">
+        Rudiments
+        <svg class="acc-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="acc-body" id="acc-rudiments">
+        <div class="voice-toggle-row">
+          <span class="v-label">Insert random rudiment</span>
+          <label class="switch"><input type="checkbox" id="rudimentsToggle"><span class="switch-track"></span></label>
+        </div>
+        <div class="field-hint">Splices one prescribed rudiment into a random spot in a measure. Choose up to 4 rudiments; the rest gray out until you deselect one.</div>
+        <div id="rudimentDetailControl" class="controls-disabled">
+          <div class="field-label" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Rudiment pool (up to 4)</span>
+            <span class="tog" id="rudimentClearAll" style="font-size:10px; padding:3px 8px;">Clear All</span>
+          </div>
+          <div id="rudimentChecklist"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── Main ── -->
@@ -457,7 +515,10 @@ input[type="range"].fader {
         <button class="btn-zoom" id="btnZoomIn" title="Zoom in">&#43;</button>
       </div>
       <div style="display:flex;align-items:center;gap:6px;margin-left:8px;">
-        <span style="font-size:11px;color:#6B6B6B;">Tempo: <span id="tempoVal">100</span> BPM</span>
+        <span style="font-size:11px;color:#6B6B6B;">Tempo</span>
+        <input type="number" id="tempoInput" min="40" max="220" step="1" value="100" inputmode="numeric"
+          style="width:44px;font-size:12px;padding:2px 4px;border:1px solid #D0D0D0;border-radius:4px;text-align:right;">
+        <span style="font-size:11px;color:#6B6B6B;">BPM</span>
         <input type="range" id="tempo" min="40" max="220" value="100" step="1" style="width:100px;">
       </div>
       <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;">
@@ -496,7 +557,6 @@ input[type="range"].fader {
         <input type="range" class="fader" id="faderMaster" min="0" max="100" value="85">
         <div class="fader-val" id="faderMasterVal">85</div>
       </div>
-      <span id="status" class="play-status">Ready.</span>
     </div>
 
     <div class="share-bar" id="shareBar" style="display:none;">
@@ -511,6 +571,10 @@ input[type="range"].fader {
           <div id="osmd-container"></div>
         </div>
       </div>
+      <div class="status-bar">
+        <span id="status" class="play-status">Ready.</span>
+        <span class="shortcut-hint"><kbd>Space</kbd> Play/Stop &middot; <kbd>M</kbd> Mix It Up</span>
+      </div>
     </div>
 
     <div class="brand-footer">GRID MIXER</div>
@@ -520,6 +584,7 @@ input[type="range"].fader {
 </div>
 
 <script>
+
 // ══════════════════════════════════════════════════════════════════════
 // STICKING LIBRARY
 // Each entry is a repeating cycle of "R"/"L" that plays continuously
@@ -527,6 +592,13 @@ input[type="range"].fader {
 // what makes patterns like the paradiddle-diddle (a 6-note cycle) drift
 // against the 16-note measure grid in exactly the way real grid sheets do.
 // ══════════════════════════════════════════════════════════════════════
+// MusicXML <divisions> (ticks per quarter note) used throughout the piece.
+// 60 = LCM(3, 4, 5): divides evenly for plain 16ths (15 ticks), 16th-note
+// triplets (10 ticks), AND Ten Stroke Roll's 5:4 tuplet (12/24 ticks) -
+// all three duration systems coexist in the same document.
+const DIVISIONS = 60;
+const TICKS_PER_SIXTEENTH = DIVISIONS / 4;
+
 const STICKING_PATTERNS = {
   alternating: ["R", "L"],
   doubles: ["R", "R", "L", "L"],
@@ -534,6 +606,120 @@ const STICKING_PATTERNS = {
   paradiddlediddle: ["R", "L", "R", "R", "L", "L"],
   triple: ["R", "L", "R", "L", "R", "L", "R", "R", "L", "R", "L", "R", "L", "R", "L", "L"],
 };
+
+// ══════════════════════════════════════════════════════════════════════
+// RUDIMENT LIBRARY
+// The rudiments the user selected from the 40 PAS International Drum
+// Rudiments (plus a Hybrid Rudiments starter set), sourced from a
+// MusicXML reference file, categorized as PAS's own listing does - Roll
+// Rudiments (with its own three PAS sub-groups), Paradiddles, Flam
+// Rudiments, Drag Rudiments.
+//
+// 26 rudiments below have real `steps` data (each note's hand/accent/
+// ornament, extracted directly from the reference XML - both lead-hand
+// versions aren't stored separately; the L-lead is derived at insertion
+// time via mirrorRudimentSteps()).
+//
+// The remaining rudiments with `steps: null` are placeholders, simply not
+// yet provided.
+//
+// Special (tuplet-embedding) rudiments - Swiss Army Triplet, Single
+// Ratamacue, and the two Ten Stroke Roll orderings - use variable-duration
+// note spans (`specialNotes`) rather than the uniform one-event-per-grid-
+// step model: each entry carries its own `ticks` (real MusicXML duration
+// at DIVISIONS), and tuplet notes additionally carry `tupletActual`/
+// `tupletNormal`/`tupletPos` (and `tupletNormalType`/`tupletBracket` when
+// the ratio isn't the standard embedded 16th-note triplet). A span can mix
+// plain and tupleted notes (Single Ratamacue) or vary printed note type
+// within one tuplet bracket (Ten Stroke Roll's 16th "singles" vs eighth
+// "doubles"). `unifiedBeam: true` keeps the primary beam unbroken across
+// the whole span even where it crosses a beat line (Ten Stroke Roll is
+// always a single continuous rhythmic unit by convention); without it,
+// the primary beam still breaks at true beat boundaries as usual.
+// ══════════════════════════════════════════════════════════════════════
+const RUDIMENT_LIBRARY = [
+  // ── I. Roll Rudiments ──
+  // (Single Stroke Roll Rudiments and Multiple Bounce Roll Rudiments
+  // subcategories removed at Bryan's request - see ROLL_SUBCATEGORIES.)
+  // C. Double Stroke Open Roll Rudiments
+  { startRule: "beatOrUpbeat", id: "five_stroke_roll", label: "Five Stroke Roll", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"}] },
+  { id: "six_stroke_roll", label: "Six Stroke Roll", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:true,ornament:null}] },
+  { startRule: "beatOrUpbeat", id: "seven_stroke_roll_a", label: "Seven Stroke Roll (Accent Last)", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:true,ornament:null}] },
+  { startRule: "beatOrUpbeat", id: "seven_stroke_roll_b", label: "Seven Stroke Roll (Accent First)", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"}] },
+  { startRule: "beatOrUpbeat", id: "nine_stroke_roll", label: "Nine Stroke Roll", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"}] },
+  // Ten Stroke Roll: a 5:4 "fivelet" spanning 2 full beats - 2 single
+  // strokes (16th, 1 stroke each) and 4 doubles (eighth+tremolo, 2 strokes
+  // each, at the SAME stroke speed as the singles), in either order. Per
+  // Bryan: downbeat-only, restricted to beats 1-3 (never 4, so it can't
+  // cross the barline - the room check below already enforces that since
+  // an 8-slot span never fits starting on the measure's last beat).
+  { startRule: "downbeatOnly", id: "ten_stroke_roll_a", label: "Ten Stroke Roll (Singles First)", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", special: true, unifiedBeam: true, steps: [{},{},{},{},{},{},{},{}], specialNotes: [
+    { hand: "R", accent: true, accentDefaultY: 45, ornament: null, xmlType: "16th", ticks: 12, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: "start", tupletBracket: true },
+    { hand: "L", accent: false, ornament: null, xmlType: "16th", ticks: 12, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "R", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "L", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "R", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "L", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: "stop" },
+  ] },
+  { startRule: "downbeatOnly", id: "ten_stroke_roll_b", label: "Ten Stroke Roll (Doubles First)", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", special: true, unifiedBeam: true, steps: [{},{},{},{},{},{},{},{}], specialNotes: [
+    { hand: "R", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: "start", tupletBracket: true },
+    { hand: "L", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "R", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "L", accent: false, ornament: "drag", xmlType: "eighth", ticks: 24, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "R", accent: false, ornament: null, xmlType: "16th", ticks: 12, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: null },
+    { hand: "L", accent: false, ornament: null, xmlType: "16th", ticks: 12, tupletActual: 5, tupletNormal: 4, tupletNormalType: "eighth", tupletPos: "stop" },
+  ] },
+  { id: "eleven_stroke_roll", label: "Eleven Stroke Roll", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"}] },
+  { id: "thirteen_stroke_roll", label: "Thirteen Stroke Roll", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"}] },
+  { startRule: "beatOrUpbeat", id: "fifteen_stroke_roll_a", label: "Fifteen Stroke Roll (Accent Last)", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:true,ornament:null}] },
+  { startRule: "beatOrUpbeat", id: "fifteen_stroke_roll_b", label: "Fifteen Stroke Roll (Accent First)", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"}] },
+  { id: "seventeen_stroke_roll", label: "Seventeen Stroke Roll", category: "Roll Rudiments", subcategory: "Double Stroke Open Roll Rudiments", steps: [{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:"drag"}] },
+  // ── II. Paradiddles (PAS: "Diddle Rudiments") ──
+  { id: "single_paradiddle", label: "Single Paradiddle", category: "Paradiddles", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:true,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"L",accent:false,ornament:null}] },
+  { id: "double_paradiddle", label: "Double Paradiddle", category: "Paradiddles", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  { id: "triple_paradiddle", label: "Triple Paradiddle", category: "Paradiddles", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  { id: "single_paradiddlediddle", label: "Single Paradiddle-Diddle", category: "Paradiddles", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"L",accent:false,ornament:null}] },
+  // ── III. Flam Rudiments ──
+  { pairRequired: true, id: "flam_accent", label: "Flam Accent", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  { id: "flam_tap", label: "Flam Tap", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"R",accent:false,ornament:null},{hand:"L",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null}] },
+  { id: "flamacue", label: "Flamacue", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:false,ornament:"flam"},{hand:"L",accent:true,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null}] },
+  { id: "flam_paradiddle", label: "Flam Paradiddle", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  { id: "single_flammed_mill", label: "Single Flammed Mill", category: "Flam Rudiments", subcategory: null, steps: null },
+  { id: "flam_paradiddlediddle", label: "Flam Paradiddle-Diddle", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"L",accent:false,ornament:null}] },
+  { id: "pataflafla", label: "Pataflafla", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:true,ornament:"flam"},{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"L",accent:true,ornament:"flam"}] },
+  { startRule: "beatOrUpbeat", id: "swiss_army_triplet", label: "Swiss Army Triplet", category: "Flam Rudiments", subcategory: null, special: true, steps: [{},{},{},{}], specialNotes: [
+    { hand: "R", accent: true, ornament: "flam", ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: "start" },
+    { hand: "R", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: null },
+    { hand: "L", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: "stop" },
+    { hand: "R", accent: true, ornament: "flam", ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: "start" },
+    { hand: "R", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: null },
+    { hand: "L", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: "stop" },
+  ] },
+  { id: "inverted_flam_tap", label: "Inverted Flam Tap", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:null},{hand:"L",accent:true,ornament:"flam"},{hand:"R",accent:false,ornament:null}] },
+  { id: "flam_drag", label: "Flam Drag", category: "Flam Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"flam"},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:null},{hand:"L",accent:true,ornament:"flam"},{hand:"R",accent:false,ornament:"drag"},{hand:"L",accent:false,ornament:null}] },
+  // ── IV. Drag Rudiments ──
+  { id: "lesson_25", label: "Lesson 25", category: "Drag Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null}] },
+  { id: "single_dragadiddle", label: "Single Dragadiddle", category: "Drag Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:"drag"},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  { id: "drag_paradiddle_1", label: "Drag Paradiddle #1", category: "Drag Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  { id: "drag_paradiddle_2", label: "Drag Paradiddle #2", category: "Drag Rudiments", subcategory: null, steps: [{hand:"R",accent:true,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:"drag"},{hand:"R",accent:false,ornament:null},{hand:"L",accent:false,ornament:null},{hand:"R",accent:false,ornament:null},{hand:"R",accent:false,ornament:null}] },
+  // Single Ratamacue: accented drag pair (2 plain 16ths - accent, then
+  // drag) leading into an embedded 16th-note triplet, pure alternating
+  // sticking throughout. `beatOrUpbeat` gives both the downbeat and
+  // upbeat placements Bryan's reference shows as one rudiment.
+  { startRule: "beatOrUpbeat", id: "single_ratamacue", label: "Single Ratamacue", category: "Drag Rudiments", subcategory: null, special: true, steps: [{},{},{},{}], specialNotes: [
+    { hand: "R", accent: true, ornament: null, ticks: 15 },
+    { hand: "L", accent: false, ornament: "drag", ticks: 15 },
+    { hand: "R", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: "start" },
+    { hand: "L", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: null },
+    { hand: "R", accent: false, ornament: null, ticks: 10, tupletActual: 3, tupletNormal: 2, tupletPos: "stop" },
+  ] },
+  // ── V. Hybrid Rudiments (Vic Firth Hybrid Rudiment Project) ──
+  // Starter set - the source list runs well beyond these (loads
+  // progressively on their site), so treat this as a first pass rather
+  // than the complete set.
+];
+const RUDIMENT_CATEGORIES = ["Roll Rudiments", "Paradiddles", "Flam Rudiments", "Drag Rudiments"];
+const ROLL_SUBCATEGORIES = ["Double Stroke Open Roll Rudiments"];
 
 function positionLabels(stepsPerMeasure) {
   return stepsPerMeasure === 12
@@ -553,9 +739,9 @@ const state = {
   measures: 2,
   tempo: 100,
   loop: true,
-  releaseMeasureEnabled: false,
-  metronome: false,
-  countIn: false,
+  releaseMeasureEnabled: true,
+  metronome: true,
+  countIn: true,
   zoom: 100,
   isPlaying: false,
 
@@ -579,6 +765,9 @@ const state = {
   dragMode: "fixed",
   dragDensity: 40,
   dragEligible: new Set([4, 12]), // beats 2 & 4 by default - distinct from flam's defaults
+
+  rudimentsEnabled: false,
+  rudimentPool: new Set(), // empty by default - up to 4 may be selected (see MAX_RUDIMENT_SELECTIONS)
 };
 
 function ensureCustomSticking() {
@@ -708,7 +897,257 @@ function generateGridSteps() {
       previousOrnament = ornament;
     }
   }
+  return insertRandomRudiment(steps, stepsPerMeasure, stepsPerBeat);
+}
+
+function mirrorHand(h) { return h === "R" ? "L" : h === "L" ? "R" : h; }
+
+// Mirrors a rudiment's R-lead step data into its L-lead equivalent:
+// hands swap, accent/ornament positions stay exactly where they are.
+// Confirmed against the reference file that this is exactly how its own
+// "verse 2" lyric line relates to "verse 1" for every rudiment checked.
+// The extra fields (ticks/xmlType/tupletActual/tupletNormal/
+// tupletNormalType/tupletPos/tupletBracket) only exist on "special"
+// rudiments with embedded tuplet spans - they pass through unchanged for
+// everything else.
+function mirrorRudimentSteps(steps) {
+  return steps.map((s) => ({
+    hand: mirrorHand(s.hand), accent: s.accent, accentDefaultY: s.accentDefaultY, ornament: s.ornament,
+    ticks: s.ticks, xmlType: s.xmlType,
+    tupletActual: s.tupletActual, tupletNormal: s.tupletNormal,
+    tupletNormalType: s.tupletNormalType, tupletPos: s.tupletPos,
+    tupletBracket: s.tupletBracket,
+  }));
+}
+
+// Tries to place one rudiment from `pool` into `steps`, either at a
+// specific forced position (used for pairing - see insertRandomRudiment)
+// or by searching all valid positions from `minGlobalStart` onward.
+// `occupied` tracks which global step indices already belong to a
+// rudiment placed earlier in this same generation call, so a second
+// insertion can never overlap/corrupt a first one.
+function attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, occupied, minGlobalStart, forcedGlobalStart, reservePairSpace) {
+  if (pool.length === 0) return null;
+
+  // Some rolls (5/7/9/15-stroke, Single Ratamacue) must only start on a
+  // downbeat ("1", "2", "3", "4") or an upbeat ("&") - never on the "e" or
+  // "a" subdivisions. Ten Stroke Roll is stricter still: downbeat only,
+  // never the upbeat (its own 8-slot room requirement, checked below,
+  // already keeps it off beat 4 so it never crosses the barline).
+  const startIsValidFor = (rudiment, startRel) => {
+    const posInBeat = startRel % stepsPerBeat;
+    if (rudiment.startRule === "beatOrUpbeat") return posInBeat === 0 || posInBeat === stepsPerBeat / 2;
+    if (rudiment.startRule === "downbeatOnly") return posInBeat === 0;
+    return true;
+  };
+  const rangeIsFree = (globalStart, len) => {
+    if (globalStart + len > steps.length) return false;
+    for (let k = 0; k < len; k++) if (occupied.has(globalStart + k)) return false;
+    return true;
+  };
+
+  const tryAt = (globalStart) => {
+    const measureIdx = Math.floor(globalStart / stepsPerMeasure);
+    const startRel = globalStart - measureIdx * stepsPerMeasure;
+    const roomInMeasure = stepsPerMeasure - startRel;
+    const dueHand = steps[globalStart].hand;
+    const fitting = pool.filter((r) => {
+      const neededRoom = (reservePairSpace && r.pairRequired) ? r.steps.length * 2 : r.steps.length;
+      return neededRoom <= roomInMeasure && startIsValidFor(r, startRel) && rangeIsFree(globalStart, r.steps.length);
+    });
+    if (fitting.length === 0) return null;
+
+    const chosen = fitting[Math.floor(Math.random() * fitting.length)];
+
+    // "Special" rudiments (currently Triple Stroke Roll and Swiss Army
+    // Triplet) embed 16th-note triplets - a genuinely different rhythm
+    // than the grid's uniform 16th steps, so they can't be spliced in
+    // 1-for-1 like a normal rudiment. Instead they consume a fixed
+    // number of grid slots (chosen.steps.length, a beat's worth of
+    // placeholders used only for the fit/room check above) but only the
+    // FIRST slot carries real content - the rudiment's actual note list
+    // (with its own precise duration/tuplet/beam data) attached as
+    // `specialNotes`. The remaining slots become silent placeholders
+    // that both the notation builder and the audio scheduler recognize
+    // and skip, since the special note list's own timing already
+    // accounts for that beat's full duration.
+    if (chosen.special) {
+      const realNotes = chosen.specialNotes;
+      const rNotes = realNotes[0].hand === dueHand ? realNotes : mirrorRudimentSteps(realNotes);
+      const spanLen = chosen.steps.length;
+
+      steps[globalStart] = { hand: rNotes[0].hand, accent: false, ornament: null, special: true, specialNotes: rNotes, slotSpan: spanLen, unifiedBeam: !!chosen.unifiedBeam };
+      occupied.add(globalStart);
+      for (let k = 1; k < spanLen; k++) {
+        steps[globalStart + k] = { hand: null, accent: false, ornament: null, specialContinuation: true };
+        occupied.add(globalStart + k);
+      }
+
+      const afterIdx = globalStart + spanLen;
+      if (afterIdx < steps.length) {
+        const desiredHand = mirrorHand(rNotes[rNotes.length - 1].hand);
+        const cycle = getStickingCycle();
+        let phase = cycle.indexOf(desiredHand);
+        if (phase === -1) phase = 0;
+        for (let k = 0; afterIdx + k < steps.length; k++) {
+          if (occupied.has(afterIdx + k)) break;
+          steps[afterIdx + k].hand = cycle[(phase + k) % cycle.length];
+        }
+      }
+
+      return { rudiment: chosen, globalStart, length: spanLen };
+    }
+
+    const rSteps = chosen.steps[0].hand === dueHand ? chosen.steps : mirrorRudimentSteps(chosen.steps);
+
+    for (let k = 0; k < rSteps.length; k++) {
+      steps[globalStart + k] = { hand: rSteps[k].hand, accent: rSteps[k].accent, ornament: rSteps[k].ornament };
+      occupied.add(globalStart + k);
+    }
+
+    // Resume the background sticking from the opposite of whichever hand
+    // the rudiment ACTUALLY ended on. Stops the moment it reaches a step
+    // some OTHER rudiment already occupies this call, so two insertions
+    // placed close together can never stomp on each other's notes.
+    const afterIdx = globalStart + rSteps.length;
+    if (afterIdx < steps.length) {
+      const desiredHand = mirrorHand(rSteps[rSteps.length - 1].hand);
+      const cycle = getStickingCycle();
+      let phase = cycle.indexOf(desiredHand);
+      if (phase === -1) phase = 0;
+      for (let k = 0; afterIdx + k < steps.length; k++) {
+        if (occupied.has(afterIdx + k)) break;
+        steps[afterIdx + k].hand = cycle[(phase + k) % cycle.length];
+      }
+    }
+
+    return { rudiment: chosen, globalStart, length: rSteps.length };
+  };
+
+  if (forcedGlobalStart !== undefined) {
+    if (forcedGlobalStart >= steps.length) return null;
+    return tryAt(forcedGlobalStart);
+  }
+
+  const candidates = [];
+  for (let g = minGlobalStart; g < steps.length; g++) candidates.push(g);
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp;
+  }
+  for (const g of candidates) {
+    const result = tryAt(g);
+    if (result) return result;
+  }
+  return null;
+}
+
+// Splices prescribed rudiment(s) into the pattern, leaving the rest of
+// the background sticking/accent grid untouched. The approach here is to
+// build grid-like passages that periodically DEVIATE into rudiments -
+// like real rhythmic passages in modern drum corps/marching band writing
+// - not to replace the grid with rudiments wholesale.
+//
+// For 1-measure passages: a single rudiment, once, anywhere it fits.
+// For 2+ measure passages: a "primary" rudiment gets placed twice (can
+// land back-to-back or spread apart), and - if the pool has more than
+// one distinct choice - a different "secondary" rudiment gets placed
+// once too, so a longer passage shows more than a single repeated
+// rudiment. Insertions are always searched in ascending position order
+// (never before an already-placed one) - this isn't just a style choice,
+// it's what keeps the hand-continuation logic correct when multiple
+// rudiments land in the same piece; searching out of order risks a
+// later insertion's resumed sticking clashing with an earlier one's
+// already-fixed lead-in hand.
+//
+// Flam Accent (and anything else flagged `pairRequired`) is short enough
+// alone that PAS/drum corps usage always groups it - either two in a row
+// or paired with a different rudiment right after. When it lands as a
+// single, isolated insertion (the secondary slot, or the whole 1-measure
+// case), this forces an immediate follow-up placement right after it.
+// When it's chosen as the primary, its own two iterations already
+// satisfy the "grouped" requirement, so no extra follow-up is forced.
+//
+// Currently scoped to the straight-16th grid: every rudiment with real
+// `steps` data in RUDIMENT_LIBRARY consists of plain, uniformly-spaced
+// 16th-note events, so it can be spliced directly into the grid's step
+// array without special notation/timing handling. Triplet-subdivision
+// mode has no rudiment data yet, so this is a no-op there.
+function insertRandomRudiment(steps, stepsPerMeasure, stepsPerBeat) {
+  if (!state.rudimentsEnabled) return steps;
+  if (state.subdivision === "triplet") return steps; // no triplet-mode rudiment data yet
+  const available = RUDIMENT_LIBRARY.filter((r) => state.rudimentPool.has(r.id) && r.steps);
+  if (available.length === 0) return steps; // nothing enabled has real data yet
+
+  const occupied = new Set();
+  let minGlobalStart = 0;
+
+  // Places one rudiment from `pool`, ALWAYS reserving enough room for a
+  // possible pairing follow-up up front (harmless for rudiments that
+  // don't need one - see attemptRudimentInsertion's reservePairSpace).
+  // If whichever rudiment actually gets chosen turns out to require
+  // pairing (currently just Flam Accent), this forces an immediate,
+  // directly-adjacent follow-up placement - a true successive pair, not
+  // just "the same rudiment appears twice somewhere in the piece."
+  // Crucially this is unconditional on WHERE this rudiment was chosen
+  // from (primary slot, secondary slot, or the sole 1-measure/single-
+  // rudiment-pool case) - Flam Accent needs pairing every time it's
+  // picked, not just when there happens to be a second rudiment to pair
+  // it with.
+  const place = (pool) => {
+    const result = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, occupied, minGlobalStart, undefined, true);
+    if (!result) return null;
+    minGlobalStart = result.globalStart + result.length;
+    if (result.rudiment.pairRequired) {
+      const pairResult = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, available, occupied, minGlobalStart, minGlobalStart);
+      if (pairResult) minGlobalStart = pairResult.globalStart + pairResult.length;
+    }
+    return result;
+  };
+
+  const numMeasures = steps.length / stepsPerMeasure;
+  if (numMeasures < 2) {
+    place(available);
+    fixDragThenFlamAdjacency(steps);
+    return steps;
+  }
+
+  const primary = available[Math.floor(Math.random() * available.length)];
+  const firstResult = place([primary]);
+  // If the first placement already self-paired (Flam Accent-style), that
+  // pair IS primary's "two iterations" - don't also tack on a third,
+  // independently-placed copy.
+  if (!firstResult || !firstResult.rudiment.pairRequired) {
+    place([primary]);
+  }
+
+  const otherChoices = available.filter((r) => r.id !== primary.id);
+  if (otherChoices.length > 0) {
+    const secondary = otherChoices[Math.floor(Math.random() * otherChoices.length)];
+    place([secondary]);
+  }
+
+  fixDragThenFlamAdjacency(steps);
   return steps;
+}
+
+// Splicing rudiments in as a post-processing step (after the main
+// generation loop already assigned flam/drag ornaments to the
+// background pattern) can put a drag/diddle mark immediately before a
+// flam that was assigned before the rudiment existed, or before another
+// rudiment that happens to start with one - neither of which the
+// original "no flam right after a drag" check (built into the main
+// generation loop, based on sequential previousOrnament tracking) could
+// have known about. This final pass re-enforces that same rule across
+// the WHOLE piece after all rudiment insertions are done, regardless of
+// whether the adjacent notes came from the background pattern, a
+// spliced-in rudiment, or the boundary between them.
+function fixDragThenFlamAdjacency(steps) {
+  for (let i = 0; i < steps.length - 1; i++) {
+    if (steps[i].ornament === "drag" && steps[i + 1].ornament === "flam") {
+      steps[i + 1].ornament = null;
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -737,7 +1176,7 @@ function opposite(hand) { return hand === "R" ? "L" : "R"; }
 // grid types), preserve that ordering - notationParts must stay scoped to
 // the main-note block only.
 function buildNoteXml(step, opts) {
-  const { xmlType, durationTicks, isTriplet, beamLevel1, beamLevel2, tupletStart, tupletStop } = opts;
+  const { xmlType, durationTicks, isTriplet, beamLevel1, beamLevel2, tupletStart, tupletStop, showTupletBracket, tupletActual, tupletNormal, tupletNormalType } = opts;
   let xml = "";
 
   if (step.ornament === "flam") {
@@ -764,7 +1203,11 @@ function buildNoteXml(step, opts) {
   xml += "        <voice>1</voice>\n";
   xml += "        <type>" + xmlType + "</type>\n";
   if (isTriplet) {
-    xml += "        <time-modification>\n          <actual-notes>3</actual-notes>\n          <normal-notes>2</normal-notes>\n        </time-modification>\n";
+    const actual = tupletActual || 3;
+    const normal = tupletNormal || 2;
+    xml += "        <time-modification>\n          <actual-notes>" + actual + "</actual-notes>\n          <normal-notes>" + normal + "</normal-notes>\n";
+    if (tupletNormalType) xml += "          <normal-type>" + tupletNormalType + "</normal-type>\n";
+    xml += "        </time-modification>\n";
   }
   xml += "        <stem>up</stem>\n";
   if (beamLevel1) xml += "        <beam number=\"1\">" + beamLevel1 + "</beam>\n";
@@ -773,9 +1216,25 @@ function buildNoteXml(step, opts) {
   const notationParts = [];
   if (step.ornament === "flam") notationParts.push("          <tied type=\"stop\"/>\n");
   const tupletPlacement = "above";
-  if (isTriplet && tupletStart) notationParts.push("          <tuplet type=\"start\" number=\"1\" bracket=\"no\" placement=\"" + tupletPlacement + "\"/>\n");
+  // The bracket line is only needed for an embedded 16th-note-triplet
+  // (xmlType "16th") now that its beam no longer breaks to show the
+  // sub-grouping on its own - the bracket is the one remaining visual cue
+  // for which notes belong to which "3". The piece-wide eighth-note-triplet
+  // mode (xmlType "eighth") is unaffected: its beam is exactly the tuplet's
+  // own notes with no ambiguity, so it keeps the plain numeral, no bracket.
+  const tupletBracket = showTupletBracket ? "yes" : "no";
+  if (isTriplet && tupletStart) notationParts.push("          <tuplet type=\"start\" number=\"1\" bracket=\"" + tupletBracket + "\" placement=\"" + tupletPlacement + "\"/>\n");
   if (isTriplet && tupletStop) notationParts.push("          <tuplet type=\"stop\" number=\"1\" placement=\"" + tupletPlacement + "\"/>\n");
-  if (step.accent) notationParts.push("          <articulations>\n            <accent placement=\"above\"/>\n          </articulations>\n");
+  if (step.accent) {
+    // Most accents auto-place fine, but a bracketed tuplet numeral sitting
+    // right above the SAME note (Ten Stroke Roll's accented first note)
+    // needs the accent pushed higher explicitly, or the two collide into
+    // one illegible mark - OSMD/VexFlow don't know about each other's
+    // vertical space here. accentDefaultY (only set where needed) opts a
+    // note into that explicit clearance.
+    const accentY = step.accentDefaultY ? " default-y=\"" + step.accentDefaultY + "\"" : "";
+    notationParts.push("          <articulations>\n            <accent placement=\"above\"" + accentY + "/>\n          </articulations>\n");
+  }
   if (step.ornament === "drag") notationParts.push("          <ornaments>\n            <tremolo type=\"single\">1</tremolo>\n          </ornaments>\n");
   if (notationParts.length > 0) {
     xml += "        <notations>\n" + notationParts.join("") + "        </notations>\n";
@@ -788,7 +1247,7 @@ function buildNoteXml(step, opts) {
 
 function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
   const isTriplet = subdivision === "triplet";
-  const divisions = isTriplet ? 12 : 4;
+  const divisions = DIVISIONS;
   const durationTicks = isTriplet ? divisions / 3 : divisions / 4;
   // Eighth-note triplets get a single beam/flag (like any eighth note);
   // only the straight-16th grid needs the double beam.
@@ -812,13 +1271,181 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
     xml += "      <print new-system=\"yes\"/>\n";
   }
 
-  measureSteps.forEach((step, i) => {
-    const posInGroup = i % groupSize;
-    const beamLevel1 = posInGroup === 0 ? "begin" : posInGroup === groupSize - 1 ? "end" : "continue";
-    const beamLevel2 = isTriplet ? null : beamLevel1; // eighth-note triplets only get one beam level
-    const tupletStart = isTriplet && posInGroup === 0;
-    const tupletStop = isTriplet && posInGroup === groupSize - 1;
-    xml += buildNoteXml(step, { xmlType, durationTicks, isTriplet, beamLevel1, beamLevel2, tupletStart, tupletStop });
+  // Build a flat list of note-descriptors for the whole measure - plain
+  // grid steps AND a special (embedded-triplet) rudiment span's own real
+  // notes exploded out - so beam1/beam2 can be computed with full
+  // knowledge of true beat boundaries and note-type runs, not just what's
+  // visible one array slot at a time.
+  //
+  // Confirmed against a reference example (2 plain 16ths, then a 1-beat
+  // triplet figure starting on the upbeat, then 2 more plain 16ths):
+  // beam level 1 groups by the TRUE BEAT and stays connected straight
+  // through a plain-to-triplet transition as long as both sides are in
+  // the same beat - it only breaks at an actual beat line. Beam level 2
+  // instead groups by note-type run: a run of plain notes is one group,
+  // and each individual 3-note tuplet bracket is its own group, breaking
+  // at every plain/triplet transition regardless of the beat line.
+  const durationTicksPerSlot = divisions / groupSize;
+  const notes = [];
+  for (let i = 0; i < measureSteps.length; i++) {
+    const step = measureSteps[i];
+    if (step.special && step.specialNotes) {
+      // Generalized over an arbitrary mix of plain and tupleted notes and
+      // an arbitrary number of tuplet brackets, using each note's own real
+      // duration (`ticks`) rather than assuming a fixed group size - this
+      // covers a span that's a single full-beat pair of 3-note triplet
+      // brackets (Swiss Army Triplet), a span mixing 2 plain 16ths with one
+      // 3-note bracket (Single Ratamacue), or one continuous 5:4 bracket
+      // spanning 2 full beats with mixed note shapes inside it (Ten Stroke
+      // Roll). trueBeat is derived from real tick offsets, so a span still
+      // straddles a beat line exactly where its own timing puts it,
+      // without any hardcoded note count.
+      const slotSpan = step.slotSpan || groupSize; // default: full-beat span, unchanged from before
+      let cumulativeTicks = 0;
+      let tupletGroupCounter = -1;
+      step.specialNotes.forEach((sn) => {
+        const isTupletNote = !!sn.tupletActual;
+        // `unifiedBeam` rudiments (Ten Stroke Roll) are written as one
+        // continuous beamed figure by convention even though they cross a
+        // beat line - force every note in the span to the same trueBeat so
+        // beam level 1 never breaks internally. Everything else keeps the
+        // real per-note tick offset, matching Bryan's reference exactly
+        // (confirmed against the Single Ratamacue upbeat figure, where the
+        // primary beam DOES break between the drag pair and the triplet
+        // because they land in different beats).
+        const trueBeat = step.unifiedBeam
+          ? Math.floor(i / groupSize)
+          : Math.floor((i * durationTicksPerSlot + cumulativeTicks) / divisions);
+        if (isTupletNote) {
+          if (sn.tupletPos === "start") tupletGroupCounter++;
+          const tupletGroupId = i + "-" + tupletGroupCounter;
+          notes.push({ kind: "tuplet", trueBeat, tupletGroupId, step: sn });
+        } else {
+          notes.push({ kind: "plain", trueBeat, posInGroup: 0, step: sn });
+        }
+        cumulativeTicks += sn.ticks;
+      });
+      i += slotSpan - 1; // the rest of this span's slots are silent placeholders already accounted for
+      continue;
+    }
+    if (step.specialContinuation) continue; // reached only if not skipped above - stay silent
+    notes.push({ kind: "plain", trueBeat: Math.floor(i / groupSize), posInGroup: i % groupSize, step });
+  }
+
+  // Beam level 1 (primary) groups purely by true beat - continuous through
+  // any plain-to-triplet transition as long as both sides share a beat.
+  // Beam level 2 (secondary) is what actually shows the eighth-note value:
+  // it groups by sub-run - a run of plain notes is one group, and each
+  // individual tuplet bracket is its own group - breaking at every
+  // plain/triplet transition AND at every triplet-group/triplet-group
+  // transition, even within the same beat. This is standard notation
+  // practice (double beam broken at the eighth-note boundary) and matches
+  // Bryan's reference exactly: e.g. 2 plain 16ths + a 3-note triplet in one
+  // beat beams as [begin,end] [begin,continue,end] - not one continuous
+  // run and not suppressed to a single beam throughout.
+  // A note's printed type decides whether it can carry a secondary beam at
+  // all: only a 16th-note-or-shorter has a second flag to show. Ten Stroke
+  // Roll's "double" notes print as eighth (one flag) even though they sit
+  // inside the same tuplet bracket as its 16th "single" notes, so the type
+  // itself - not just the tuplet group - has to be part of the secondary-
+  // beam run key, or a type change mid-bracket wouldn't break the run.
+  const noteXmlType = (n) => (n.kind === "tuplet" ? (n.step.xmlType || "16th") : xmlType);
+  const beam2KeyOf = (n) => (n.kind === "tuplet" ? "tup:" + n.tupletGroupId : "plain") + ":" + noteXmlType(n);
+  const sameBeam2Run = (a, b) => !!a && !!b && a.trueBeat === b.trueBeat && beam2KeyOf(a) === beam2KeyOf(b);
+  notes.forEach((n, idx) => {
+    const prev = notes[idx - 1];
+    const next = notes[idx + 1];
+    const beam1Start = !prev || prev.trueBeat !== n.trueBeat;
+    const beam1End = !next || next.trueBeat !== n.trueBeat;
+    // A run cut down to a single note (both neighbors differ) isn't
+    // beamable at all - no beam data renders it as a plain flagged note.
+    n.beam1 = (beam1Start && beam1End) ? null : beam1Start ? "begin" : beam1End ? "end" : "continue";
+    if (isTriplet || noteXmlType(n) !== "16th") {
+      // Piece-wide eighth-note-triplet mode, or a note printed coarser
+      // than a 16th (Ten Stroke Roll's eighth "doubles"): one flag, no
+      // secondary beam level to draw regardless.
+      n.beam2 = null;
+    } else {
+      const beam2Start = !sameBeam2Run(prev, n);
+      const beam2End = !sameBeam2Run(n, next);
+      n.beam2 = (beam2Start && beam2End) ? null : beam2Start ? "begin" : beam2End ? "end" : "continue";
+    }
+  });
+
+  // VexFlow draws every beam LEVEL for the full width of its beam-1 run -
+  // it has no notion of a secondary beam that's shorter than the primary
+  // one, so the <beam number="2"> begin/end breaks above are correct data
+  // but don't by themselves change what gets drawn (confirmed by direct
+  // SVG inspection: the beam-2 path came out exactly as wide as beam-1,
+  // no visible break, even though the XML was right). To get the actual
+  // "double beam within each group, single connecting beam between
+  // groups" look, installBeamRenderPatch() (called once from initOSMD)
+  // overrides VexFlow's per-level line calculation for exactly this case.
+  // It needs, per measure, the sub-grouping of each beam-1 run (only runs
+  // that mix more than one sub-group matter - plain runs are left alone).
+  if (!isTriplet) {
+    const beamRuns = [];
+    let currentRun = [];
+    notes.forEach((n, idx) => {
+      currentRun.push(n);
+      const next = notes[idx + 1];
+      if (!next || next.trueBeat !== n.trueBeat) {
+        if (currentRun.length >= 2) beamRuns.push(currentRun);
+        currentRun = [];
+      }
+    });
+    const partitions = beamRuns.map((run) => {
+      const groups = [];
+      run.forEach((n, localIdx) => {
+        const prevInRun = run[localIdx - 1];
+        if (prevInRun && beam2KeyOf(prevInRun) === beam2KeyOf(n)) {
+          groups[groups.length - 1].push(localIdx);
+        } else {
+          groups.push([localIdx]);
+        }
+      });
+      // A group only earns a drawn secondary beam if its notes actually
+      // carry beam-2 XML data (n.beam2, set above - null for anything
+      // printed coarser than a 16th, e.g. Ten Stroke Roll's eighth
+      // "doubles"). Without this filter, a same-key run of eighth notes
+      // (which groups together same as a run of 16ths would) got a
+      // secondary beam segment drawn anyway, making every note look like a
+      // 16th regardless of its real printed type.
+      return groups.filter((g) => run[g[0]].beam2);
+    });
+    const registry = (typeof window !== "undefined" ? window : globalThis);
+    registry.__gmBeamGroups = registry.__gmBeamGroups || {};
+    registry.__gmBeamGroups[measureNumber] = partitions;
+  }
+
+  notes.forEach((n) => {
+    if (n.kind === "tuplet") {
+      const sn = n.step;
+      xml += buildNoteXml(sn, {
+        // Printed type stays the note's real value (16th for an embedded
+        // triplet or a Ten Stroke Roll "single", eighth for a "double") -
+        // VexFlow/OSMD derives the beam-flag count from the printed
+        // <type>. The primary beam (continuous) plus the secondary beam's
+        // break points (set above) are what actually draw the double-
+        // beam-with-a-single-connecting-beam look; no type substitution
+        // needed.
+        xmlType: sn.xmlType || "16th",
+        durationTicks: sn.ticks,
+        isTriplet: true,
+        showTupletBracket: !!sn.tupletBracket,
+        beamLevel1: n.beam1,
+        beamLevel2: n.beam2,
+        tupletStart: sn.tupletPos === "start",
+        tupletStop: sn.tupletPos === "stop",
+        tupletActual: sn.tupletActual,
+        tupletNormal: sn.tupletNormal,
+        tupletNormalType: sn.tupletNormalType,
+      });
+    } else {
+      const tupletStart = isTriplet && n.posInGroup === 0;
+      const tupletStop = isTriplet && n.posInGroup === groupSize - 1;
+      xml += buildNoteXml(n.step, { xmlType, durationTicks, isTriplet, beamLevel1: n.beam1, beamLevel2: n.beam2, tupletStart, tupletStop });
+    }
   });
 
   xml += "    </measure>\n";
@@ -831,8 +1458,7 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
 // the recount option, that same measure's trailing silence doubles as a
 // 1-bar count-in before the pattern repeats.
 function buildReleaseMeasureXml(measureNumber, subdivision) {
-  const isTriplet = subdivision === "triplet";
-  const divisions = isTriplet ? 12 : 4;
+  const divisions = DIVISIONS;
   const quarterTicks = divisions; // one quarter note = `divisions` ticks, by definition
 
   let xml = "    <measure number=\"" + measureNumber + "\">\n";
@@ -877,11 +1503,73 @@ function buildGridScoreDocument(allSteps, subdivision, measures, includeReleaseM
 // ══════════════════════════════════════════════════════════════════════
 // OSMD
 // ══════════════════════════════════════════════════════════════════════
+// VexFlow's stock Beam class draws every beam level (primary AND
+// secondary) for the full width of a beam-1 run - there's no supported
+// option to make just the secondary line shorter (break_on_indices and
+// secondary_break_ticks both affect every level uniformly, confirmed by
+// reading VexFlow's own getBeamLines source bundled in OSMD). So this
+// patches VexFlow's per-level line calculation directly. VexFlow computes
+// each note's needed beam lines by checking every duration level coarser
+// than the note's own value - for our 16th notes that's level "4" (the
+// visually PRIMARY line, despite the "4" name) and level "8" (the
+// SECONDARY line); level "16" itself is never drawn since a note is never
+// beamed at its own exact duration. So the level to intercept is "8", not
+// "16" - confirmed by direct inspection of what each level actually
+// returns for both an untouched plain group and one of ours.
+// Only on beams buildGridMeasureXml has flagged as mixing more than one
+// sub-group (a plain run next to a triplet, or two triplet groups back to
+// back) do we override level "8": draw one secondary-beam segment per
+// sub-group (using the same stem-x geometry VexFlow's own code uses)
+// instead of one segment spanning the whole run. Every other beam -
+// including every plain, untouched 16th-note group, and level "4" even on
+// beams we do touch - falls through to VexFlow's original unmodified
+// method, so this can't change how anything else renders.
+// Installed once; OSMD's VexFlowMeasure.finalizeBeams runs on every
+// layout pass and re-attaches the per-beam sub-group data each time, so
+// a later re-render (resize, zoom, playback re-layout) stays correct too.
+let beamRenderPatchInstalled = false;
+function installBeamRenderPatch() {
+  if (beamRenderPatchInstalled) return;
+  const VexFlowMeasureProto = opensheetmusicdisplay.VexFlowMeasure.prototype;
+  const originalFinalizeBeams = VexFlowMeasureProto.finalizeBeams;
+  let levelPatchInstalled = false;
+  VexFlowMeasureProto.finalizeBeams = function (...args) {
+    const result = originalFinalizeBeams.apply(this, args);
+    const registry = (typeof window !== "undefined" ? window : globalThis);
+    const partitions = registry.__gmBeamGroups && registry.__gmBeamGroups[this.MeasureNumber];
+    const voiceBeams = this.vfbeams && this.vfbeams["1"];
+    if (partitions && voiceBeams) {
+      voiceBeams.forEach((beam, i) => {
+        const partition = partitions[i];
+        beam.__gmSubgroups = (partition && partition.length > 1) ? partition : null;
+      });
+      if (!levelPatchInstalled && voiceBeams.length) {
+        levelPatchInstalled = true;
+        const beamProto = Object.getPrototypeOf(voiceBeams[0]);
+        const originalGetBeamLines = beamProto.getBeamLines;
+        beamProto.getBeamLines = function (durationLevel) {
+          if (durationLevel === "8" && this.__gmSubgroups) {
+            return this.__gmSubgroups.map((group) => {
+              const first = this.notes[group[0]];
+              const last = this.notes[group[group.length - 1]];
+              return { start: first.getStemX() - 1.5, end: last.getStemX() - 1.5, start_note: first };
+            });
+          }
+          return originalGetBeamLines.call(this, durationLevel);
+        };
+      }
+    }
+    return result;
+  };
+  beamRenderPatchInstalled = true;
+}
+
 function initOSMD() {
   osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
     autoResize: true, drawTitle: false, drawPartNames: false,
     setWantedStemDirectionByXml: true,
   });
+  installBeamRenderPatch();
   osmd.EngravingRules.PercussionOneLineCutoff = 0;
   osmd.EngravingRules.PercussionForceVoicesOneLineCutoff = 0;
   osmd.EngravingRules.FlatBeams = true;
@@ -892,16 +1580,17 @@ function initOSMD() {
   // shows the number on every group, which is what a practice/grid sheet
   // needs.
   osmd.EngravingRules.TupletNumberLimitConsecutiveRepetitions = false;
-  // Raise the tuplet "3" further above the staff so it clears an accent
-  // mark on the same beat (both render above the note by default and were
-  // colliding, most visibly on the "la" position). Per VexFlow's own
-  // tuplet y_offset docs, negative values raise it, positive values lower
-  // it - OSMD's default is a mild +0.5, so a negative value here moves it
-  // up relative to that default. Note: unlike the tremolo/accent marks,
-  // this one I can't visually verify myself - tuplet numbers render as a
-  // font glyph rather than an SVG path, and this environment has no real
-  // font loaded to test against, so please double check this looks right.
-  osmd.EngravingRules.TupletNumberYOffset = -2;
+  // Raise the tuplet bracket/number further above the staff so it clears
+  // an accent mark on the same beat. Per VexFlow's own tuplet y_offset
+  // docs, negative values raise it, positive values lower it - OSMD's
+  // default is a mild +0.5, so a negative value here moves it up relative
+  // to that default. -15 was needed (not just the numeral but the whole
+  // bracket lifts) to clear the Ten Stroke Roll's accented first note,
+  // which sits directly under the bracket's left corner; verified via
+  // rendered-image inspection against Ratamacue and Swiss Army Triplet too
+  // (their accent/tuplet-number pairs sit on different, non-adjacent notes
+  // so they had headroom already and aren't affected by the larger offset).
+  osmd.EngravingRules.TupletNumberYOffset = -15;
   // TremoloStrokeScale is set per-render in generateAndRender (below),
   // since it depends on the current subdivision - see comment there.
 }
@@ -1147,6 +1836,87 @@ function renderDragGrid() {
   });
 }
 
+const MAX_RUDIMENT_SELECTIONS = 4;
+
+function updateRudimentCellDisabledStates() {
+  const atLimit = state.rudimentPool.size >= MAX_RUDIMENT_SELECTIONS;
+  document.querySelectorAll('#rudimentChecklist .tog[data-rudiment-id]').forEach((cell) => {
+    const isOn = cell.classList.contains("on");
+    cell.classList.toggle("disabled", atLimit && !isOn);
+  });
+}
+
+function renderRudimentChecklist() {
+  const container = document.getElementById("rudimentChecklist");
+  container.innerHTML = "";
+
+  const makeToggleCell = (r) => {
+    const cell = document.createElement("div");
+    cell.className = "tog" + (state.rudimentPool.has(r.id) ? " on" : "");
+    cell.textContent = r.label;
+    cell.dataset.rudimentId = r.id;
+    cell.addEventListener("click", () => {
+      const isOn = state.rudimentPool.has(r.id);
+      if (!isOn && state.rudimentPool.size >= MAX_RUDIMENT_SELECTIONS) return; // at the cap - ignore new selections
+      if (isOn) state.rudimentPool.delete(r.id);
+      else state.rudimentPool.add(r.id);
+      cell.classList.toggle("on");
+      updateRudimentCellDisabledStates();
+    });
+    return cell;
+  };
+
+  RUDIMENT_CATEGORIES.forEach((category) => {
+    const section = document.createElement("div");
+    section.className = "rud-cat-section";
+
+    const trigger = document.createElement("button");
+    trigger.className = "rud-cat-trigger";
+    trigger.innerHTML = category + ' <svg class="rud-cat-chevron" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>';
+
+    const body = document.createElement("div");
+    body.className = "rud-cat-body";
+
+    trigger.addEventListener("click", () => {
+      const isOpen = trigger.classList.contains("open");
+      trigger.classList.toggle("open", !isOpen);
+      body.classList.toggle("open", !isOpen);
+    });
+
+    if (category === "Roll Rudiments") {
+      // PAS further splits Roll Rudiments into three named sub-groups -
+      // show each as its own labeled cluster within the dropdown.
+      ROLL_SUBCATEGORIES.forEach((subcategory) => {
+        const items = RUDIMENT_LIBRARY.filter((r) => r.category === category && r.subcategory === subcategory);
+        if (items.length === 0) return;
+        const subHeading = document.createElement("div");
+        subHeading.className = "sub-label";
+        subHeading.style.cssText = "font-weight:600; color:#B0B0B0;";
+        subHeading.textContent = subcategory;
+        body.appendChild(subHeading);
+
+        const group = document.createElement("div");
+        group.className = "radio-group";
+        items.forEach((r) => group.appendChild(makeToggleCell(r)));
+        body.appendChild(group);
+      });
+    } else {
+      const group = document.createElement("div");
+      group.className = "radio-group";
+      RUDIMENT_LIBRARY.filter((r) => r.category === category).forEach((r) => {
+        group.appendChild(makeToggleCell(r));
+      });
+      body.appendChild(group);
+    }
+
+    section.appendChild(trigger);
+    section.appendChild(body);
+    container.appendChild(section);
+  });
+
+  updateRudimentCellDisabledStates();
+}
+
 function renderCustomStickingGrid() {
   ensureCustomSticking();
   const stepsPerMeasure = stepsPerMeasureFor(state.subdivision);
@@ -1170,6 +1940,7 @@ function renderAllPositionGrids() {
   renderAccentRotateStartGrid();
   renderFlamGrid();
   renderDragGrid();
+  renderRudimentChecklist();
   if (state.stickingPreset === "custom") renderCustomStickingGrid();
 }
 renderAllPositionGrids();
@@ -1294,6 +2065,17 @@ document.querySelectorAll("#dragModeGroup .tog").forEach((btn) => {
   });
 });
 
+// ── Rudiments ──
+document.getElementById("rudimentsToggle").addEventListener("change", (e) => {
+  state.rudimentsEnabled = e.target.checked;
+  document.getElementById("rudimentDetailControl").classList.toggle("controls-disabled", !state.rudimentsEnabled);
+  generateAndRender();
+});
+document.getElementById("rudimentClearAll").addEventListener("click", () => {
+  state.rudimentPool = new Set();
+  renderRudimentChecklist();
+});
+
 // ── Settings drawer (mobile/tablet) + sidebar collapse chevron ──
 // A single toggle function keeps the header's chevron rotation in sync no
 // matter which control triggered it (gear button, header click, or
@@ -1321,17 +2103,50 @@ if (window.innerWidth <= 1023) {
 // ══════════════════════════════════════════════════════════════════════
 // AUDIO ENGINE
 // ══════════════════════════════════════════════════════════════════════
+// Single mono snare one-shot (~158ms, clean transient onset, decays to
+// silence within the file). Embedded as a data URI so the app stays one
+// portable file. Source: user-supplied recording, mixed to mono.
+const SNARE_SAMPLE_DATA_URI = "data:audio/wav;base64,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XwBoAHMAeABpAGEAUwA1ABkAEAAZABsAMwBGADgAGgAAAPT/+P8BAAMABwAQAA4A/f/w/+f/5P/c/+b/9v8dAB0AHgAUAA4A/f/9//v/AgANABgAEAAVABIAJAAVAAoAAwAGAAsABwADAP7/CQALAAgAEgASAAQA8P/r/9r/zv/Q/97/9f/3//7/AQD6/+X/9v/n/+P/4v/x/+r/7//8//3/+v////T/9P/2//P/6f/1//n//P/5//b/BwD2//n/9//z//L/8P/1//P/7//m/9//2f/W/83/x//L/8r/z//Y/+j/7f/p//v/AgAVAAcABwAIAAMA+//+//j/8f/1//f/+f/6//r/9v/2/wYAAwAJAAgAEQAEAAAA+f/t/+X/5f/o/+3/7P/0//D/6v/p/+n/8P/w//n/9/8AAPn/CAAIAAcABgAHAAUABQAKAA4AEgALAAgA//8FAAUABgAHAA0ADQAXABUAFwAcABYAGgAUABUAEAAIAAUA/v/+//r/AgD7/wAAAwAHAAkACwALAAgADQALAA8AFgAWABkAFAAVABYAEwAUABIABQAJAP//AAADAAUACAAGAAkABwAIAAcABgABAAMABQACAAQAAAD///z//f/8//7/+//3//n/+//9//3//////////v8AAP3//v////3//v8AAPv/BAD9/wEA/P8DAP//AgAAAP//AAACAAAABQD9/wQA/f8EAP//AQD+/wAA/v8DAP//BQD9/wQA//8CAAEAAAABAAAAAQD//wAA//8BAP3//////wIA///+/wEA/v8BAAIA//8AAP7/AAABAP7/AAD+/wAAAQD//wAA/v8CAAAA/////wAAAAD//wMA/v8EAP7/AQADAPv/BwD6/wYA/v8DAAAAAAABAP7/AgD+/wEA//8CAP//AQADAP//AwD+/wAAAwD9/wEA/v///wIAAQACAAEAAQACAAAAAQD7/wAA/P8CAP7/AQD9//////8AAAIA//8DAP7/AgAAAAEAAQD/////AAACAAEAAgAAAAIA//8CAAIAAQAAAAMA//8GAPz/AgABAP///v8DAP7/AwD9/wAAAQAAAP7/AQD+/wAA/v////3/AgD9/wMA//8CAAAAAgAAAAMAAwD//wIAAAACAP//AAD+/wEA/f//////AAD/////AAABAAEAAQD//wIAAAAAAAEAAAAAAAIA/v8BAP7/AAACAP//AAABAP//AQAAAP//AQD//wEA/v8DAP////8BAP7/AgD9/wEA/f8AAP////8BAP7/AQD+/wIA/f8CAP3/AAAAAP7/AAD/////AgD8/wQA/P8FAP7/AgD/////AQABAP3/AwD+/wEAAQD//wEAAQD+/wMA/f8CAP//AAAAAAAA/v8BAP//AAAAAP//AAABAAAA/v8BAP3/AQD9/wIA/f8BAP//AQD//wAAAQD//wEAAQD+/wIA/////wIA/f8EAP7/AQABAAEAAAACAP//AgD+/wIAAAAAAAIA/f8DAAAA//8DAPz/BQD7/wQA/f8DAAAA//8DAP3/AgAAAP//AgD+/wIA/v///wAA//8BAP7/AQAAAAEAAQAAAAIAAQAAAAIA/v8EAP7///8CAPz/BAD7/wQA/P8AAAAA/v8DAP3/BAD+/wAAAgD+/wMA//8BAAEA//8CAP//AgABAP7/BgD7/wUA/P8DAP7/AgD+/wEAAAD//wIA/f8BAP7/AgD+/wMA/f8CAP////8BAP7/AQD9/wEAAAD//wEAAAD+/wIA//8CAAEAAQD+/wMA/v8CAP7/AAAAAAAAAQAAAAEA/v8CAAAA/v8DAP3/AQABAP3/AwD9/wMA/v8CAAAA//8BAP//AQD//wAAAQD+/wQA+v8HAPn/BgD7/wMA/f8DAP3/BAD7/wQA/f8CAP7/AgD9/wMA/v8BAAAAAAAAAAEA/v8CAP7/AgD+/wIA/f8DAP3/BAD8/wMA/v8CAAAA//8BAAAA//8CAP7/AgD//wAAAAAAAAAAAAAAAAAAAAABAP7/AgD+/wIA/////wEA//8CAP7/AQAAAP//AgD9/wMA//8AAAAAAAAAAAEA//8BAP//AQD//wIA/v8CAP7/AQAAAAAAAAD//wIA/v8BAP//AAABAP//AAAAAAAAAQD//wAAAQD+/wMA/f8DAP7/AAABAP//AQD//wEA/v8DAPz/BAD+////BAD6/wcA+v8EAP3/AwD+/wEA//8AAAEA//8BAP//AQD//wAAAgD9/wMA/f8DAP7/AQD//wIA/f8EAPv/BQD8/wMA/v8AAAIA/f8EAPv/BAD+/wIA/v8CAP3/AwD/////AwD7/wUA/P8DAP////8BAP//AQD//wEA//8AAAEA/v8CAP7/AgD+/wEAAQD+/wIA/v8BAAAAAAAAAAAAAQD+/wEAAAABAP//AAD//wIAAAD//wAAAAAAAAEA/v8CAP//AAABAP7/AgD//wEA/v8EAPv/BQD7/wQA/v8BAP//AAABAP7/AwD9/wIA//8AAAAAAgD8/wQA/P8DAP//AAAAAAAA//8CAP////8DAPv/BwD5/wUA/f8CAP//AAAAAAAAAQD//wEA//8BAP//AQAAAP//AQD//wEAAAD//wAAAQD//wEA//8AAAEAAAD+/wMA/f8DAP7/AQD//wIA/f8DAP7/AgD+/wEA//8BAAAAAAAAAAAA//8BAAAA//8CAP3/AwD+/wEAAAD//wEAAAD//wIA/v8CAP7/AQAAAAAAAAAAAAAAAAAAAAAA//8DAP3/AQABAP7/AgD//wAAAAABAP7/AgD+/wIA/v8BAAAA//8BAP//AQD//wEA//8BAP//AQD//wEAAAAAAP//AQD//wIA//8AAP//AQAAAAEA/v8CAP3/BAD9/wIA//8AAAAAAQD+/wMA/f8CAP//AAAAAAAAAAAAAAEA/v8CAP7/AQAAAAAAAAAAAP//AQAAAP//AgD9/wMA/f8DAP7/AQAAAP//AQD//wEA//8CAP3/AwD8/wUA+/8FAPv/AwD//w==";
+
 let mixerNodes = null;
-let synths = null;
 let metronomeSynth = null;
+let sharedStrokeBuffer = null;
+let strokeVoicePool = [];
+let strokeVoiceIndex = 0;
+let audioReadyPromise = null;
+
+// A single Tone.Player isn't polyphonic on its own - calling .start()
+// again while it's still playing replaces the in-flight voice rather
+// than layering a new one on top. At this app's fastest spacing (32nd
+// notes at 160 BPM, ~47ms apart) against a ~158ms sample, 3-4 copies can
+// legitimately be ringing at once during a dense passage (rolls, flams,
+// back-to-back drags), so a round-robin pool of players sharing one
+// decoded buffer is used instead - the standard, reliable way to get
+// true overlapping sample playback without decoding the file more than
+// once. 8 voices gives comfortable headroom over that 3-4 worst case.
+const STROKE_VOICE_POOL_SIZE = 8;
 
 function faderToDb(v) {
   if (v <= 0) return -Infinity;
   return (v - 100) * 0.4; // 100 -> 0dB, 0 -> -40dB
 }
 
+// velocity spans the same range triggerGridStep has always produced:
+// ~0.25 (unaccented) up to 1.25 (accent), with flam/drag values in
+// between. A real accented drum hit isn't just a turned-up soft hit -
+// it's also tonally brighter - so a single static sample needs a second
+// axis besides gain to read as a genuine accent rather than the same
+// tone turned up. Gain carries the loud/soft contrast; a gentle
+// high-shelf tilt carries a bright/dull contrast on top of it.
+function velocityToneParams(velocity) {
+  const norm = Math.min(1, Math.max(0, (velocity - 0.25) / (1.25 - 0.25)));
+  const gainDb = -16 + norm * 16; // -16dB (soft) up to 0dB (full/accent)
+  const shelfDb = -4 + norm * 7; // -4dB (dulled) up to +3dB (brightened), above ~3kHz
+  return { gainDb, shelfDb };
+}
+
 function initSynths() {
-  if (synths) return;
+  if (audioReadyPromise) return audioReadyPromise;
 
   mixerNodes = {
     stroke: new Tone.Volume(faderToDb(parseInt(document.getElementById("faderStroke").value, 10))).connect(Tone.Destination),
@@ -1345,26 +2160,24 @@ function initSynths() {
   mixerNodes.click.connect(masterVol);
   mixerNodes.master = masterVol;
 
-  // Layered snare synthesis: a short burst of filtered white noise gives
-  // the "snap"/wires character, a quick pitched thump underneath gives it
-  // body - the standard two-layer approach for a synthesized snare, since
-  // a single pitched voice alone reads more like a tom or kick.
-  const noiseFilter = new Tone.Filter({ type: "highpass", frequency: 700 }).connect(mixerNodes.stroke);
-  synths = {
-    strokeNoise: new Tone.NoiseSynth({
-      noise: { type: "white" },
-      envelope: { attack: 0.001, decay: 0.13, sustain: 0 },
-    }).connect(noiseFilter),
-    strokeTone: new Tone.MembraneSynth({
-      pitchDecay: 0.02, octaves: 3,
-      envelope: { attack: 0.001, decay: 0.09, sustain: 0, release: 0.03 },
-    }).connect(mixerNodes.stroke),
-  };
-
   metronomeSynth = new Tone.Synth({
     oscillator: { type: "square" },
     envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.01 },
   }).connect(mixerNodes.click);
+
+  sharedStrokeBuffer = new Tone.ToneAudioBuffer();
+  audioReadyPromise = sharedStrokeBuffer.load(SNARE_SAMPLE_DATA_URI).then(() => {
+    strokeVoicePool = [];
+    for (let i = 0; i < STROKE_VOICE_POOL_SIZE; i++) {
+      const filter = new Tone.Filter({ type: "highshelf", frequency: 3000, gain: 0 }).connect(mixerNodes.stroke);
+      const gain = new Tone.Volume(0).connect(filter);
+      const player = new Tone.Player(sharedStrokeBuffer).connect(gain);
+      player.fadeOut = 0.005; // guards against a click if a voice is ever stolen mid-tail
+      strokeVoicePool.push({ player, gain, filter });
+    }
+  });
+
+  return audioReadyPromise;
 }
 
 function triggerMetronomeClick(time, isDownbeat) {
@@ -1373,8 +2186,17 @@ function triggerMetronomeClick(time, isDownbeat) {
 }
 
 function triggerStroke(time, velocity) {
-  synths.strokeNoise.triggerAttackRelease("16n", time, velocity);
-  synths.strokeTone.triggerAttackRelease("A2", "16n", time, velocity * 0.6);
+  if (!strokeVoicePool.length) return;
+  const { gainDb, shelfDb } = velocityToneParams(velocity);
+  const voice = strokeVoicePool[strokeVoiceIndex];
+  strokeVoiceIndex = (strokeVoiceIndex + 1) % strokeVoicePool.length;
+  // Scheduled at the note's own future audio time (not applied
+  // immediately) so closely-spaced hits queued in the same lookahead
+  // batch each keep their own correct dynamics instead of all picking
+  // up whichever value was set last.
+  voice.gain.volume.setValueAtTime(gainDb, time);
+  voice.filter.gain.setValueAtTime(shelfDb, time);
+  voice.player.start(time);
 }
 
 // Plays one grid step. Flams keep the grace-note-before-the-beat model
@@ -1387,6 +2209,42 @@ function triggerStroke(time, velocity) {
 // instead of a fixed millisecond offset that would drift out of proportion
 // at very slow or very fast tempos.
 function triggerGridStep(step, time) {
+  if (step.specialContinuation) return; // silent - already covered by the special span that started this beat
+
+  if (step.special && step.specialNotes) {
+    // Special (tuplet-embedding) rudiments: each note's real MusicXML
+    // duration (`ticks`, at DIVISIONS) drives its own audio offset within
+    // the span, rather than assuming a uniform triplet spacing - this
+    // stays correct whether every note is an equal-length embedded 16th-
+    // note triplet (Swiss Army Triplet), a mix of plain and tupleted
+    // notes (Single Ratamacue), or a mix of note *speeds* within one
+    // tuplet bracket (Ten Stroke Roll's 16th "singles" and eighth
+    // "doubles"). Tone's own tempo-aware "16n" conversion keeps the
+    // spacing exact at any BPM.
+    const secondsPerTick = Tone.Time("16n").toSeconds() / TICKS_PER_SIXTEENTH;
+    let cumulativeTicks = 0;
+    step.specialNotes.forEach((sn) => {
+      const noteTime = time + cumulativeTicks * secondsPerTick;
+      const velocity = sn.accent ? 1.25 : 0.25;
+      if (sn.ornament === "flam") {
+        triggerStroke(noteTime - 0.03, 0.4);
+        triggerStroke(noteTime, velocity);
+      } else if (sn.ornament === "drag") {
+        // A "drag" mark here is either a genuine drag ornament (a plain
+        // note) or a "double" stroke position (Ten Stroke Roll) - both
+        // are two real strokes filling this note's own duration, at the
+        // same per-stroke rate as its neighboring single strokes.
+        const halfDur = (sn.ticks * secondsPerTick) / 2;
+        triggerStroke(noteTime, velocity * 0.85);
+        triggerStroke(noteTime + halfDur, velocity);
+      } else {
+        triggerStroke(noteTime, velocity);
+      }
+      cumulativeTicks += sn.ticks;
+    });
+    return;
+  }
+
   const mainVelocity = step.accent ? 1.25 : 0.25; // accent = 125%, unaccented = 25%
   if (step.ornament === "flam") {
     triggerStroke(time - 0.03, 0.4);
@@ -1425,7 +2283,10 @@ function stopPlayback() {
 async function startPlayback() {
   if (!currentGridSteps.length) return;
   await Tone.start();
-  initSynths();
+  // The sample only needs decoding once per page load; on every startPlayback
+  // after the first this resolves immediately since audioReadyPromise is cached.
+  document.getElementById("status").textContent = "Loading sound...";
+  await initSynths();
   stopPlayback();
 
   Tone.Transport.bpm.value = state.tempo;
@@ -1493,11 +2354,45 @@ document.getElementById("btnGen").addEventListener("click", generateAndRender);
 document.getElementById("btnPlay").addEventListener("click", startPlayback);
 document.getElementById("btnStop").addEventListener("click", stopPlayback);
 
-// Tempo
-document.getElementById("tempo").addEventListener("input", (e) => {
-  state.tempo = parseInt(e.target.value, 10);
-  document.getElementById("tempoVal").textContent = state.tempo;
+// Keyboard shortcuts: M to mix up a new pattern, Space to toggle play/stop.
+// Ignored while a form field has focus (typing "m" into a future text box,
+// or hitting space inside the tempo/measure-count number fields, shouldn't
+// be hijacked), and while a modifier key is held (leaves Cmd/Ctrl
+// shortcuts alone).
+document.addEventListener("keydown", (e) => {
+  const tag = (e.target && e.target.tagName || "").toLowerCase();
+  const isFormField = tag === "input" || tag === "textarea" || tag === "select" || (e.target && e.target.isContentEditable);
+  if (isFormField || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.code === "Space" || e.key === " ") {
+    e.preventDefault();
+    if (state.isPlaying) stopPlayback(); else startPlayback();
+  } else if (e.key === "m" || e.key === "M") {
+    e.preventDefault();
+    generateAndRender();
+  }
+});
+
+// Tempo - slider and typed number stay in sync, either one can drive it.
+const TEMPO_MIN = 40, TEMPO_MAX = 220;
+function setTempo(bpm) {
+  state.tempo = Math.min(TEMPO_MAX, Math.max(TEMPO_MIN, bpm));
+  document.getElementById("tempo").value = state.tempo;
+  document.getElementById("tempoInput").value = state.tempo;
   if (state.isPlaying) Tone.Transport.bpm.value = state.tempo;
+}
+document.getElementById("tempo").addEventListener("input", (e) => {
+  setTempo(parseInt(e.target.value, 10));
+});
+const tempoInputEl = document.getElementById("tempoInput");
+// Commit on Enter or on leaving the field, not on every keystroke - typing
+// "100" one digit at a time would otherwise clamp/jump mid-entry (e.g. "2"
+// snapping up to 40 before the "0" and "0" are even typed).
+tempoInputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") tempoInputEl.blur();
+});
+tempoInputEl.addEventListener("blur", (e) => {
+  const parsed = parseInt(e.target.value, 10);
+  setTempo(isNaN(parsed) ? state.tempo : parsed);
 });
 
 // Loop
@@ -1574,6 +2469,8 @@ function serializeSettings() {
     dragMode: state.dragMode,
     dragDensity: state.dragDensity,
     dragEligible: Array.from(state.dragEligible),
+    rudimentsEnabled: state.rudimentsEnabled,
+    rudimentPool: Array.from(state.rudimentPool),
   };
 }
 
@@ -1592,6 +2489,7 @@ function restoreSettingsFromUrl() {
     state.accentStaticPositions = new Set(s.accentStaticPositions || []);
     state.flamEligible = new Set(s.flamEligible || []);
     state.dragEligible = new Set(s.dragEligible || []);
+    state.rudimentPool = new Set(s.rudimentPool || RUDIMENT_LIBRARY.map((r) => r.id));
     return true;
   } catch (err) {
     console.error("Failed to parse shared settings:", err);
@@ -1603,7 +2501,7 @@ function syncUIFromState() {
   document.querySelectorAll("#subdivisionGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.subdivision === state.subdivision));
   document.getElementById("measureCount").value = String(state.measures);
   document.getElementById("tempo").value = state.tempo;
-  document.getElementById("tempoVal").textContent = state.tempo;
+  document.getElementById("tempoInput").value = state.tempo;
   document.getElementById("loopToggle").checked = state.loop;
   document.getElementById("releaseMeasureToggle").checked = state.releaseMeasureEnabled;
   document.getElementById("metronomeToggle").checked = state.metronome;
@@ -1633,6 +2531,9 @@ function syncUIFromState() {
   document.getElementById("dragDensitySlider").value = state.dragDensity;
   document.getElementById("dragDensityVal").textContent = state.dragDensity + "%";
   document.querySelectorAll("#dragModeGroup .tog").forEach((b) => b.classList.toggle("on", b.dataset.dragMode === state.dragMode));
+
+  document.getElementById("rudimentsToggle").checked = state.rudimentsEnabled;
+  document.getElementById("rudimentDetailControl").classList.toggle("controls-disabled", !state.rudimentsEnabled);
 
   renderAllPositionGrids();
 }
@@ -1693,8 +2594,13 @@ window.addEventListener("load", () => {
     document.getElementById("status").textContent = "Failed to load OSMD from CDN.";
     return;
   }
-  const restored = restoreSettingsFromUrl();
-  if (restored) syncUIFromState();
+  restoreSettingsFromUrl();
+  // Always sync, not just when a URL restored settings - on a plain
+  // default load state.* already holds the real startup defaults (release
+  // measure / metronome / count-in all true), but the checkboxes in the
+  // HTML start unchecked, so without this the toggles LOOKED off even
+  // though the state driving playback was correctly on.
+  syncUIFromState();
   initOSMD();
   generateAndRender();
 });
