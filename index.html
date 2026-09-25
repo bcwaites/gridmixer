@@ -2574,7 +2574,17 @@ async function shortenViaCloudflare(longUrl, inp, btn, sts) {
     }
   } catch (e) {
     inp.value = longUrl;
-    sts.textContent = e.name === "AbortError" ? "Timed out — full URL ready" : "";
+    // A plain network-level failure (CORS block, DNS failure, offline,
+    // etc.) throws here with no `res` to inspect - previously this left
+    // no status message at all, which made a real failure indistinguishable
+    // from "nothing went wrong, it's just slow." Logging to the console
+    // preserves the real browser-level error (e.g. the exact CORS message)
+    // for debugging, while the status line always gives the user *some*
+    // visible signal instead of a silent fallback.
+    console.error("Grid Mixer link shortening failed:", e);
+    sts.textContent = e.name === "AbortError"
+      ? "Timed out — full URL ready"
+      : "Could not reach shortener — full URL ready to copy";
   }
   btn.disabled = false;
 }
