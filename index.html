@@ -487,6 +487,7 @@ input[type="range"].fader {
           <label class="switch"><input type="checkbox" id="rudimentsToggle"><span class="switch-track"></span></label>
         </div>
         <div class="field-hint">Splices one prescribed rudiment into a random spot in a measure. Choose up to 4 rudiments; the rest gray out until you deselect one.</div>
+        <div class="field-hint" id="rudimentCoverageHint" style="color:#7a7a7a;"></div>
         <div id="rudimentDetailControl" class="controls-disabled">
           <div class="field-label" style="display:flex; justify-content:space-between; align-items:center;">
             <span>Rudiment pool (up to 4)</span>
@@ -928,7 +929,7 @@ function mirrorRudimentSteps(steps) {
 // `occupied` tracks which global step indices already belong to a
 // rudiment placed earlier in this same generation call, so a second
 // insertion can never overlap/corrupt a first one.
-function attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, occupied, minGlobalStart, forcedGlobalStart, reservePairSpace) {
+function attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, occupied, minGlobalStart, forcedGlobalStart, reservePairSpace, regionEnd) {
   if (pool.length === 0) return null;
 
   // Some rolls (5/7/9/15-stroke, Single Ratamacue) must only start on a
@@ -951,7 +952,10 @@ function attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, oc
   const tryAt = (globalStart) => {
     const measureIdx = Math.floor(globalStart / stepsPerMeasure);
     const startRel = globalStart - measureIdx * stepsPerMeasure;
-    const roomInMeasure = stepsPerMeasure - startRel;
+    let roomInMeasure = stepsPerMeasure - startRel;
+    // Optional tighter limit (used by the coverage planner to confine a
+    // rudiment to one half-measure when packing two into a measure).
+    if (regionEnd !== undefined) roomInMeasure = Math.min(roomInMeasure, regionEnd - globalStart);
     const dueHand = steps[globalStart].hand;
     const fitting = pool.filter((r) => {
       const neededRoom = (reservePairSpace && r.pairRequired) ? r.steps.length * 2 : r.steps.length;
@@ -1050,17 +1054,11 @@ function attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, oc
 // like real rhythmic passages in modern drum corps/marching band writing
 // - not to replace the grid with rudiments wholesale.
 //
-// For 1-measure passages: a single rudiment, once, anywhere it fits.
-// For 2+ measure passages: a "primary" rudiment gets placed twice (can
-// land back-to-back or spread apart), and - if the pool has more than
-// one distinct choice - a different "secondary" rudiment gets placed
-// once too, so a longer passage shows more than a single repeated
-// rudiment. Insertions are always searched in ascending position order
-// (never before an already-placed one) - this isn't just a style choice,
-// it's what keeps the hand-continuation logic correct when multiple
-// rudiments land in the same piece; searching out of order risks a
-// later insertion's resumed sticking clashing with an earlier one's
-// already-fixed lead-in hand.
+// 1-measure passages carry two rudiments (one per half-measure).
+// For 2+ measure passages: planRudimentCoverage() guarantees EVERY selected
+// rudiment appears at least once (per 4-measure phrase), placed in
+// ascending order - which is also what keeps the hand-continuation logic
+// correct when multiple rudiments land in the same piece.
 //
 // Flam Accent (and anything else flagged `pairRequired`) is short enough
 // alone that PAS/drum corps usage always groups it - either two in a row
@@ -1082,55 +1080,138 @@ function insertRandomRudiment(steps, stepsPerMeasure, stepsPerBeat) {
   if (available.length === 0) return steps; // nothing enabled has real data yet
 
   const occupied = new Set();
-  let minGlobalStart = 0;
 
-  // Places one rudiment from `pool`, ALWAYS reserving enough room for a
-  // possible pairing follow-up up front (harmless for rudiments that
-  // don't need one - see attemptRudimentInsertion's reservePairSpace).
-  // If whichever rudiment actually gets chosen turns out to require
-  // pairing (currently just Flam Accent), this forces an immediate,
-  // directly-adjacent follow-up placement - a true successive pair, not
-  // just "the same rudiment appears twice somewhere in the piece."
-  // Crucially this is unconditional on WHERE this rudiment was chosen
-  // from (primary slot, secondary slot, or the sole 1-measure/single-
-  // rudiment-pool case) - Flam Accent needs pairing every time it's
-  // picked, not just when there happens to be a second rudiment to pair
-  // it with.
-  const place = (pool) => {
-    const result = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, occupied, minGlobalStart, undefined, true);
-    if (!result) return null;
-    minGlobalStart = result.globalStart + result.length;
-    if (result.rudiment.pairRequired) {
-      const pairResult = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, available, occupied, minGlobalStart, minGlobalStart);
-      if (pairResult) minGlobalStart = pairResult.globalStart + pairResult.length;
+  planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, occupied);
+  fixDragThenFlamAdjacency(steps, occupied);
+  return steps;
+}
+
+// ── Guaranteed-coverage planner ──────────────────────────
+// Works in phrases of up to 4 measures (each phrase is planned afresh, so
+// 8/16-measure pieces reshuffle every 4 bars). Per phrase it places
+//   T = min(2m, max(N, min(3, m)))
+// rudiments: every selected rudiment once, plus repeats when the phrase has
+// room. One rudiment per measure is the baseline; when T > m, a measure
+// holds two, each confined to its own half-measure so they never collide
+// or cross the barline. Starts prefer a beat or "&" and fall back to any
+// legal slot. Identical rudiments never sit back to back (N >= 2), a flam
+// never lands right after a drag, and Flam Accent always goes in as a
+// pair (the two together count as one appearance). A phrase that fails is
+// rolled back and re-planned (best partial plan kept if none succeeds).
+// Records of the rudiments that ended up in the most recent plan (read by
+// tests / debugging; not used by the app itself).
+let lastRudimentPlan = [];
+function planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, occupied) {
+  lastRudimentPlan = [];
+  const numMeasures = steps.length / stepsPerMeasure;
+  const half = stepsPerMeasure / 2;
+  const N = available.length;
+  const MAX_PHRASE = 4;
+  const MAX_TRIES = 150;
+
+  const shuffle = (a) => {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = a[i]; a[i] = a[j]; a[j] = t;
     }
-    return result;
+    return a;
+  };
+  const firstOrnOf = (r) => (r.special ? (r.specialNotes[0].ornament || null) : (r.steps[0].ornament || null));
+  const lastOrnOf = (r) => (r.special ? (r.specialNotes[r.specialNotes.length - 1].ornament || null) : (r.steps[r.steps.length - 1].ornament || null));
+  const snapshot = () => ({ steps: steps.map((s) => Object.assign({}, s)), occ: new Set(occupied) });
+  const restore = (snap) => {
+    for (let i = 0; i < steps.length; i++) steps[i] = Object.assign({}, snap.steps[i]);
+    occupied.clear();
+    snap.occ.forEach((v) => occupied.add(v));
   };
 
-  const numMeasures = steps.length / stepsPerMeasure;
-  if (numMeasures < 2) {
-    place(available);
-    fixDragThenFlamAdjacency(steps);
-    return steps;
-  }
+  let prevRecord = null;
 
-  const primary = available[Math.floor(Math.random() * available.length)];
-  const firstResult = place([primary]);
-  // If the first placement already self-paired (Flam Accent-style), that
-  // pair IS primary's "two iterations" - don't also tack on a third,
-  // independently-placed copy.
-  if (!firstResult || !firstResult.rudiment.pairRequired) {
-    place([primary]);
-  }
+  for (let b0 = 0; b0 < numMeasures; b0 += MAX_PHRASE) {
+    const m = Math.min(MAX_PHRASE, numMeasures - b0);
+    // A single measure carries two rudiments (one per half); longer phrases
+    // scale up from there.
+    const T = m === 1 ? 2 : Math.min(2 * m, Math.max(N, Math.min(3, m)));
+    const base = snapshot();
+    let best = null;
 
-  const otherChoices = available.filter((r) => r.id !== primary.id);
-  if (otherChoices.length > 0) {
-    const secondary = otherChoices[Math.floor(Math.random() * otherChoices.length)];
-    place([secondary]);
-  }
+    for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+      restore(base);
 
-  fixDragThenFlamAdjacency(steps);
-  return steps;
+      // Sequence of rudiments for this phrase (each once + repeats).
+      let seq = null;
+      for (let t = 0; t < 40; t++) {
+        seq = available.slice();
+        while (seq.length < T) seq.push(available[Math.floor(Math.random() * N)]);
+        shuffle(seq);
+        // Flam Tap is idiomatic back to back, so it is exempt from the
+        // no-repeat rule.
+        let dup = !!(prevRecord && N >= 2 && seq[0].id === prevRecord.rudiment.id && seq[0].id !== "flam_tap");
+        for (let i = 1; i < seq.length; i++) if (seq[i].id === seq[i - 1].id && seq[i].id !== "flam_tap") dup = true;
+        if (!dup || N < 2) break;
+      }
+      if (seq.length > 2 * m) seq.length = 2 * m;
+
+      // How many rudiments each measure carries (0-2).
+      const counts = new Array(m).fill(Math.floor(seq.length / m));
+      const order = shuffle(Array.from({ length: m }, (_, i) => i));
+      for (let i = 0; i < seq.length % m; i++) counts[order[i]]++;
+
+      const records = [];
+      const placeOne = (item, from, regionEnd) => {
+        const cands = [];
+        for (let g = from; g < regionEnd; g++) cands.push(g);
+        const aligned = shuffle(cands.filter((g) => g % stepsPerBeat === 0 || g % stepsPerBeat === stepsPerBeat / 2));
+        const rest = shuffle(cands.filter((g) => !(g % stepsPerBeat === 0 || g % stepsPerBeat === stepsPerBeat / 2)));
+        for (const g of aligned.concat(rest)) {
+          const res = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, [item], occupied, from, g, true, regionEnd);
+          if (!res) continue;
+          records.push({ rudiment: item, start: res.globalStart, end: res.globalStart + res.length });
+          if (item.pairRequired) {
+            const pr = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, [item], occupied, res.globalStart + res.length, res.globalStart + res.length, false, regionEnd);
+            if (!pr) return false;
+            records.push({ rudiment: item, start: pr.globalStart, end: pr.globalStart + pr.length });
+          }
+          return true;
+        }
+        return false;
+      };
+
+      let ok = true;
+      let cursor = b0 * stepsPerMeasure;
+      let si = 0;
+      for (let mi = 0; mi < m && ok; mi++) {
+        const mS = (b0 + mi) * stepsPerMeasure;
+        const mE = mS + stepsPerMeasure;
+        const k = counts[mi];
+        for (let j = 0; j < k && ok; j++) {
+          const item = seq[si++];
+          const regionStart = k === 2 ? mS + j * half : mS;
+          const regionEnd = k === 2 ? regionStart + half : mE;
+          if (!placeOne(item, Math.max(cursor, regionStart), regionEnd)) { ok = false; break; }
+          cursor = records[records.length - 1].end;
+        }
+      }
+
+      // Drag directly followed by a flam between neighbouring rudiments.
+      if (ok) {
+        const chain = prevRecord ? [prevRecord].concat(records) : records;
+        for (let i = 1; i < chain.length; i++) {
+          if (chain[i - 1].end === chain[i].start && lastOrnOf(chain[i - 1].rudiment) === "drag" && firstOrnOf(chain[i].rudiment) === "flam") { ok = false; break; }
+        }
+      }
+
+      const covered = new Set(records.map((r) => r.rudiment.id)).size;
+      if (ok) { best = null; prevRecord = records[records.length - 1] || prevRecord; records.forEach((r) => lastRudimentPlan.push(r)); break; }
+      if (!best || covered > best.covered) best = { covered, snap: snapshot(), records: records.slice() };
+    }
+
+    if (best) {
+      restore(best.snap);
+      if (best.records.length) prevRecord = best.records[best.records.length - 1];
+      best.records.forEach((r) => lastRudimentPlan.push(r));
+    }
+  }
 }
 
 // Splicing rudiments in as a post-processing step (after the main
@@ -1144,12 +1225,41 @@ function insertRandomRudiment(steps, stepsPerMeasure, stepsPerBeat) {
 // the WHOLE piece after all rudiment insertions are done, regardless of
 // whether the adjacent notes came from the background pattern, a
 // spliced-in rudiment, or the boundary between them.
-function fixDragThenFlamAdjacency(steps) {
+function fixDragThenFlamAdjacency(steps, occupied) {
   for (let i = 0; i < steps.length - 1; i++) {
-    if (steps[i].ornament === "drag" && steps[i + 1].ornament === "flam") {
+    if (rudLastOrn(steps, i) !== "drag" || rudFirstOrn(steps, i + 1) !== "flam") continue;
+    const nextIsRudiment = occupied && occupied.has(i + 1);
+    const prevIsRudiment = occupied && occupied.has(i);
+    if (nextIsRudiment && !prevIsRudiment) {
+      // Background drag directly before a rudiment's flam: drop the
+      // background drag, so the prescribed rudiment stays intact.
+      steps[i].ornament = null;
+    } else if (!steps[i + 1].special) {
       steps[i + 1].ornament = null;
     }
   }
+}
+
+// Ornament a step presents at its leading / trailing edge. "Special"
+// rudiments (tuplet spans) keep their real notes in specialNotes and fill
+// the rest of their slots with continuation placeholders.
+function rudFirstOrn(steps, i) {
+  const s = steps[i];
+  if (s.specialContinuation) return null;
+  if (s.special) return s.specialNotes[0].ornament || null;
+  return s.ornament || null;
+}
+function rudLastOrn(steps, i) {
+  const s = steps[i];
+  if (s.specialContinuation) {
+    let j = i - 1;
+    while (j >= 0 && steps[j].specialContinuation) j--;
+    const p = steps[j];
+    if (p && p.special && j + p.slotSpan - 1 === i) return p.specialNotes[p.specialNotes.length - 1].ornament || null;
+    return null;
+  }
+  if (s.special) return s.slotSpan === 1 ? (s.specialNotes[s.specialNotes.length - 1].ornament || null) : null;
+  return s.ornament || null;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1848,6 +1958,29 @@ function updateRudimentCellDisabledStates() {
   });
 }
 
+// Explains how the current pool + measure count will play out: with 2+
+// measures every selected rudiment is guaranteed to appear at least once
+// (per 4-measure phrase); 4 measures gives 3-4 rudiments the most room.
+function updateRudimentCoverageHint() {
+  const el = document.getElementById("rudimentCoverageHint");
+  if (!el) return;
+  const n = RUDIMENT_LIBRARY.filter((r) => state.rudimentPool.has(r.id) && r.steps).length;
+  let text = "";
+  if (state.rudimentsEnabled && state.subdivision !== "triplet" && n >= 2) {
+    if (state.measures < 2) {
+      text = n <= 2 ? "Both rudiments will appear, one in each half of the measure." : "With 1 measure, two of your " + n + " rudiments play (one per half). Use 2 or more measures to hear all of them.";
+    } else if (state.measures === 2 && n >= 3) {
+      text = "All " + n + " rudiments will appear, packed two to a measure. Choose 4 measures for more room between them.";
+    } else if (state.measures > 4) {
+      text = "All " + n + " rudiments appear at least once in every 4-measure phrase.";
+    } else {
+      text = "All " + n + " rudiments will appear at least once.";
+    }
+  }
+  el.textContent = text;
+  el.style.display = text ? "" : "none";
+}
+
 function renderRudimentChecklist() {
   const container = document.getElementById("rudimentChecklist");
   container.innerHTML = "";
@@ -1864,6 +1997,7 @@ function renderRudimentChecklist() {
       else state.rudimentPool.add(r.id);
       cell.classList.toggle("on");
       updateRudimentCellDisabledStates();
+      updateRudimentCoverageHint();
     });
     return cell;
   };
@@ -1953,6 +2087,7 @@ document.querySelectorAll("#subdivisionGroup .tog").forEach((btn) => {
     document.querySelectorAll("#subdivisionGroup .tog").forEach((b) => b.classList.remove("on"));
     btn.classList.add("on");
     state.subdivision = btn.dataset.subdivision;
+    updateRudimentCoverageHint();
     // Position sets were defined against the old grid resolution - clamp
     // them into range for the new one rather than leaving stale indices.
     const n = stepsPerMeasureFor(state.subdivision);
@@ -1969,6 +2104,7 @@ document.querySelectorAll("#subdivisionGroup .tog").forEach((btn) => {
 // ── Measures ──
 document.getElementById("measureCount").addEventListener("change", (e) => {
   state.measures = parseInt(e.target.value, 10);
+  updateRudimentCoverageHint();
 });
 
 document.getElementById("accentMixedDensitySlider").addEventListener("input", (e) => {
@@ -2071,11 +2207,13 @@ document.querySelectorAll("#dragModeGroup .tog").forEach((btn) => {
 document.getElementById("rudimentsToggle").addEventListener("change", (e) => {
   state.rudimentsEnabled = e.target.checked;
   document.getElementById("rudimentDetailControl").classList.toggle("controls-disabled", !state.rudimentsEnabled);
+  updateRudimentCoverageHint();
   generateAndRender();
 });
 document.getElementById("rudimentClearAll").addEventListener("click", () => {
   state.rudimentPool = new Set();
   renderRudimentChecklist();
+  updateRudimentCoverageHint();
 });
 
 // ── Settings drawer (mobile/tablet) + sidebar collapse chevron ──
@@ -2536,6 +2674,7 @@ function syncUIFromState() {
 
   document.getElementById("rudimentsToggle").checked = state.rudimentsEnabled;
   document.getElementById("rudimentDetailControl").classList.toggle("controls-disabled", !state.rudimentsEnabled);
+  updateRudimentCoverageHint();
 
   renderAllPositionGrids();
 }
