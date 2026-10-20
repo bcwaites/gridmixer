@@ -1075,8 +1075,8 @@ function attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, pool, oc
 // mode has no rudiment data yet, so this is a no-op there.
 function insertRandomRudiment(steps, stepsPerMeasure, stepsPerBeat) {
   if (!state.rudimentsEnabled) return steps;
-  if (state.subdivision === "triplet") return steps; // no triplet-mode rudiment data yet
-  const available = RUDIMENT_LIBRARY.filter((r) => state.rudimentPool.has(r.id) && r.steps);
+  let available = RUDIMENT_LIBRARY.filter((r) => state.rudimentPool.has(r.id) && r.steps);
+  if (state.subdivision === "triplet") available = available.map(tripletRudimentItem).filter(Boolean);
   if (available.length === 0) return steps; // nothing enabled has real data yet
 
   const occupied = new Set();
@@ -1084,6 +1084,49 @@ function insertRandomRudiment(steps, stepsPerMeasure, stepsPerBeat) {
   planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, occupied);
   fixDragThenFlamAdjacency(steps, occupied);
   return steps;
+}
+
+// ── Triplet (12/8) rudiments ───────────────────────────────────────────
+// In the 12/8 grid every rudiment is written stroke-for-stroke on plain
+// eighth notes (a drag/diddle mark is still one note carrying the slash):
+//   - Roll rudiments end in an explicit release note after their last
+//     diddle: Five Stroke = diddle, diddle, release (1, la, li), and a roll
+//     may start on any of the three notes of a group.
+//   - Ten Stroke Roll is the same idea: 4 diddles + 2 singles, 6 notes.
+//   - Swiss Army Triplet is two flam/tap/tap groups (6 notes), group starts.
+//   - Any 6-note rudiment may also be written as six 16ths filling ONE
+//     group (a "special" span, group start only) - chosen at random where
+//     both forms fit.
+// Single Ratamacue is left out (its figure is built from 16th-note
+// triplets, which only exist in the 16th grid).
+const TRIPLET_UNAVAILABLE = new Set(["single_ratamacue"]);
+
+function tripletRudimentItem(r) {
+  if (TRIPLET_UNAVAILABLE.has(r.id) || !r.steps) return null;
+  let base;
+  if (r.special) {
+    base = r.specialNotes.map((n) => ({ hand: n.hand, accent: !!n.accent, ornament: n.ornament || null }));
+  } else {
+    base = r.steps.map((st) => ({ hand: st.hand, accent: !!st.accent, ornament: st.ornament || null }));
+    const last = base[base.length - 1];
+    if (r.category === "Roll Rudiments" && last.ornament === "drag") {
+      base.push({ hand: mirrorHand(last.hand), accent: false, ornament: null }); // the release
+    }
+  }
+  const eighth = {
+    id: r.id, label: r.label, category: r.category, pairRequired: r.pairRequired,
+    startRule: r.id === "swiss_army_triplet" ? "downbeatOnly" : undefined,
+    steps: base,
+  };
+  const variants = [eighth];
+  if (base.length === 6) {
+    variants.push({
+      id: r.id, label: r.label, category: r.category,
+      special: true, startRule: "downbeatOnly", steps: [{}, {}, {}],
+      specialNotes: base.map((n) => ({ hand: n.hand, accent: n.accent, ornament: n.ornament, ticks: DIVISIONS / 4, xmlType: "16th" })),
+    });
+  }
+  return Object.assign({}, eighth, { variants });
 }
 
 // ── Guaranteed-coverage planner ──────────────────────────
@@ -1106,6 +1149,9 @@ function planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, o
   const numMeasures = steps.length / stepsPerMeasure;
   const half = stepsPerMeasure / 2;
   const N = available.length;
+  const isTripletGrid = stepsPerMeasure === 12;
+  // Fewest grid slots an item can occupy (a pairRequired one needs two).
+  const slotsNeeded = (it) => (it.pairRequired ? 2 : 1) * Math.min.apply(null, (it.variants || [it]).map((v) => v.steps.length));
   const MAX_PHRASE = 4;
   const MAX_TRIES = 150;
 
@@ -1148,9 +1194,14 @@ function planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, o
         // no-repeat rule.
         let dup = !!(prevRecord && N >= 2 && seq[0].id === prevRecord.rudiment.id && seq[0].id !== "flam_tap");
         for (let i = 1; i < seq.length; i++) if (seq[i].id === seq[i - 1].id && seq[i].id !== "flam_tap") dup = true;
-        if (!dup || N < 2) break;
+        // A single measure carries two rudiments only when two actually fit
+        // (long ones can't share a 12/8 measure): keep shuffling for a pair
+        // that fits, and fall back to one rudiment if none does.
+        const pairFits = m !== 1 || seq.length < 2 || slotsNeeded(seq[0]) + slotsNeeded(seq[1]) <= stepsPerMeasure;
+        if ((!dup || N < 2) && pairFits) break;
       }
       if (seq.length > 2 * m) seq.length = 2 * m;
+      if (m === 1 && seq.length === 2 && slotsNeeded(seq[0]) + slotsNeeded(seq[1]) > stepsPerMeasure) seq.length = 1;
 
       // How many rudiments each measure carries (0-2).
       const counts = new Array(m).fill(Math.floor(seq.length / m));
@@ -1159,16 +1210,23 @@ function planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, o
 
       const records = [];
       const placeOne = (item, from, regionEnd) => {
+        // An item may offer several written forms (12/8 triplet mode); the
+        // insertion picks one that fits at each candidate position.
+        const forms = item.variants || [item];
         const cands = [];
         for (let g = from; g < regionEnd; g++) cands.push(g);
-        const aligned = shuffle(cands.filter((g) => g % stepsPerBeat === 0 || g % stepsPerBeat === stepsPerBeat / 2));
-        const rest = shuffle(cands.filter((g) => !(g % stepsPerBeat === 0 || g % stepsPerBeat === stepsPerBeat / 2)));
+        // Prefer beat / "&" starts (group starts in 12/8). 12/8 rolls are
+        // meant to move freely across the group, so they get no preference.
+        const wantAligned = !(isTripletGrid && item.category === "Roll Rudiments");
+        const isAligned = (g) => g % stepsPerBeat === 0 || g % stepsPerBeat === stepsPerBeat / 2;
+        const aligned = wantAligned ? shuffle(cands.filter(isAligned)) : [];
+        const rest = shuffle(cands.filter((g) => !wantAligned || !isAligned(g)));
         for (const g of aligned.concat(rest)) {
-          const res = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, [item], occupied, from, g, true, regionEnd);
+          const res = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, forms, occupied, from, g, true, regionEnd);
           if (!res) continue;
           records.push({ rudiment: item, start: res.globalStart, end: res.globalStart + res.length });
           if (item.pairRequired) {
-            const pr = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, [item], occupied, res.globalStart + res.length, res.globalStart + res.length, false, regionEnd);
+            const pr = attemptRudimentInsertion(steps, stepsPerMeasure, stepsPerBeat, forms, occupied, res.globalStart + res.length, res.globalStart + res.length, false, regionEnd);
             if (!pr) return false;
             records.push({ rudiment: item, start: pr.globalStart, end: pr.globalStart + pr.length });
           }
@@ -1184,10 +1242,20 @@ function planRudimentCoverage(steps, stepsPerMeasure, stepsPerBeat, available, o
         const mS = (b0 + mi) * stepsPerMeasure;
         const mE = mS + stepsPerMeasure;
         const k = counts[mi];
+        // Two rudiments in one measure: each gets its own half when both
+        // fit in one (always true in the 16th grid); otherwise the first
+        // is confined to whatever leaves the second its minimum room.
+        let needs = [];
+        if (k === 2) {
+          needs = [slotsNeeded(seq[si]), slotsNeeded(seq[si + 1])];
+          if (needs[0] + needs[1] > stepsPerMeasure) { ok = false; break; }
+        }
+        const halves = k === 2 && needs[0] <= half && needs[1] <= half;
         for (let j = 0; j < k && ok; j++) {
           const item = seq[si++];
-          const regionStart = k === 2 ? mS + j * half : mS;
-          const regionEnd = k === 2 ? regionStart + half : mE;
+          let regionStart = mS, regionEnd = mE;
+          if (k === 2 && halves) { regionStart = mS + j * half; regionEnd = regionStart + half; }
+          else if (k === 2 && j === 0) { regionEnd = mE - needs[1]; }
           if (!placeOne(item, Math.max(cursor, regionStart), regionEnd)) { ok = false; break; }
           cursor = records[records.length - 1].end;
         }
@@ -1358,11 +1426,16 @@ function buildNoteXml(step, opts) {
 }
 
 function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
+  // Triplet mode is written in 12/8: twelve plain eighth notes beamed in
+  // groups of three (dotted-quarter beats). No tuplet brackets or "3"
+  // numerals are needed - the meter itself carries the triplet feel, and
+  // playback timing (three grid steps per beat) is unchanged.
   const isTriplet = subdivision === "triplet";
   const divisions = DIVISIONS;
-  const durationTicks = isTriplet ? divisions / 3 : divisions / 4;
-  // Eighth-note triplets get a single beam/flag (like any eighth note);
-  // only the straight-16th grid needs the double beam.
+  const slotTicks = isTriplet ? divisions / 2 : divisions / 4; // eighth (30) vs 16th (15)
+  const beatTicks = isTriplet ? slotTicks * 3 : divisions;      // dotted quarter (90) vs quarter (60)
+  const durationTicks = slotTicks;
+  // Only the straight-16th grid needs the double beam.
   const xmlType = isTriplet ? "eighth" : "16th";
   const groupSize = isTriplet ? 3 : 4;
 
@@ -1372,7 +1445,9 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
     xml += "        <divisions>" + divisions + "</divisions>\n";
     xml += "        <clef>\n          <sign>percussion</sign>\n        </clef>\n";
     xml += "        <staff-details>\n          <staff-lines>5</staff-lines>\n        </staff-details>\n";
-    xml += "        <time>\n          <beats>4</beats>\n          <beat-type>4</beat-type>\n        </time>\n";
+    xml += isTriplet
+      ? "        <time>\n          <beats>12</beats>\n          <beat-type>8</beat-type>\n        </time>\n"
+      : "        <time>\n          <beats>4</beats>\n          <beat-type>4</beat-type>\n        </time>\n";
     xml += "      </attributes>\n";
   }
   // Force every system to hold at least 2 measures, on any screen size,
@@ -1397,7 +1472,7 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
   // instead groups by note-type run: a run of plain notes is one group,
   // and each individual 3-note tuplet bracket is its own group, breaking
   // at every plain/triplet transition regardless of the beat line.
-  const durationTicksPerSlot = divisions / groupSize;
+  const durationTicksPerSlot = slotTicks;
   const notes = [];
   for (let i = 0; i < measureSteps.length; i++) {
     const step = measureSteps[i];
@@ -1427,7 +1502,7 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
         // because they land in different beats).
         const trueBeat = step.unifiedBeam
           ? Math.floor(i / groupSize)
-          : Math.floor((i * durationTicksPerSlot + cumulativeTicks) / divisions);
+          : Math.floor((i * durationTicksPerSlot + cumulativeTicks) / beatTicks);
         if (isTupletNote) {
           if (sn.tupletPos === "start") tupletGroupCounter++;
           const tupletGroupId = i + "-" + tupletGroupCounter;
@@ -1461,7 +1536,7 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
   // inside the same tuplet bracket as its 16th "single" notes, so the type
   // itself - not just the tuplet group - has to be part of the secondary-
   // beam run key, or a type change mid-bracket wouldn't break the run.
-  const noteXmlType = (n) => (n.kind === "tuplet" ? (n.step.xmlType || "16th") : xmlType);
+  const noteXmlType = (n) => (n.kind === "tuplet" ? (n.step.xmlType || "16th") : (n.step.xmlType || xmlType));
   const beam2KeyOf = (n) => (n.kind === "tuplet" ? "tup:" + n.tupletGroupId : "plain") + ":" + noteXmlType(n);
   const sameBeam2Run = (a, b) => !!a && !!b && a.trueBeat === b.trueBeat && beam2KeyOf(a) === beam2KeyOf(b);
   notes.forEach((n, idx) => {
@@ -1472,10 +1547,10 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
     // A run cut down to a single note (both neighbors differ) isn't
     // beamable at all - no beam data renders it as a plain flagged note.
     n.beam1 = (beam1Start && beam1End) ? null : beam1Start ? "begin" : beam1End ? "end" : "continue";
-    if (isTriplet || noteXmlType(n) !== "16th") {
-      // Piece-wide eighth-note-triplet mode, or a note printed coarser
-      // than a 16th (Ten Stroke Roll's eighth "doubles"): one flag, no
-      // secondary beam level to draw regardless.
+    if (noteXmlType(n) !== "16th") {
+      // A note printed coarser than a 16th (every plain 12/8 eighth, Ten
+      // Stroke Roll's eighth "doubles"): one flag, no secondary beam level
+      // to draw regardless.
       n.beam2 = null;
     } else {
       const beam2Start = !sameBeam2Run(prev, n);
@@ -1495,7 +1570,7 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
   // overrides VexFlow's per-level line calculation for exactly this case.
   // It needs, per measure, the sub-grouping of each beam-1 run (only runs
   // that mix more than one sub-group matter - plain runs are left alone).
-  if (!isTriplet) {
+  if (!isTriplet || notes.some((n) => noteXmlType(n) === "16th")) {
     const beamRuns = [];
     let currentRun = [];
     notes.forEach((n, idx) => {
@@ -1554,9 +1629,10 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
         tupletNormalType: sn.tupletNormalType,
       });
     } else {
-      const tupletStart = isTriplet && n.posInGroup === 0;
-      const tupletStop = isTriplet && n.posInGroup === groupSize - 1;
-      xml += buildNoteXml(n.step, { xmlType, durationTicks, isTriplet, beamLevel1: n.beam1, beamLevel2: n.beam2, tupletStart, tupletStop });
+      // Plain notes inside a special span may carry their own printed type /
+      // duration (12/8 six-sixteenths variants); ordinary grid steps use the
+      // grid's own.
+      xml += buildNoteXml(n.step, { xmlType: n.step.xmlType || xmlType, durationTicks: n.step.ticks || durationTicks, isTriplet: false, beamLevel1: n.beam1, beamLevel2: n.beam2 });
     }
   });
 
@@ -1571,7 +1647,11 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
 // 1-bar count-in before the pattern repeats.
 function buildReleaseMeasureXml(measureNumber, subdivision) {
   const divisions = DIVISIONS;
-  const quarterTicks = divisions; // one quarter note = `divisions` ticks, by definition
+  // One beat: a quarter note (`divisions` ticks) in 4/4, a dotted quarter
+  // (1.5x) in 12/8 triplet mode.
+  const isTriplet = subdivision === "triplet";
+  const quarterTicks = isTriplet ? divisions * 3 / 2 : divisions;
+  const dot = isTriplet ? "        <dot/>\n" : "";
 
   let xml = "    <measure number=\"" + measureNumber + "\">\n";
   if (measureNumber > 1 && (measureNumber - 1) % 2 === 0) {
@@ -1580,10 +1660,10 @@ function buildReleaseMeasureXml(measureNumber, subdivision) {
   xml += "      <note>\n";
   xml += "        <unpitched>\n          <display-step>C</display-step>\n          <display-octave>5</display-octave>\n        </unpitched>\n";
   xml += "        <duration>" + quarterTicks + "</duration>\n";
-  xml += "        <voice>1</voice>\n        <type>quarter</type>\n        <stem>up</stem>\n";
+  xml += "        <voice>1</voice>\n        <type>quarter</type>\n" + dot + "        <stem>up</stem>\n";
   xml += "      </note>\n";
   for (let i = 0; i < 3; i++) {
-    xml += "      <note>\n        <rest/>\n        <duration>" + quarterTicks + "</duration>\n        <voice>1</voice>\n        <type>quarter</type>\n      </note>\n";
+    xml += "      <note>\n        <rest/>\n        <duration>" + quarterTicks + "</duration>\n        <voice>1</voice>\n        <type>quarter</type>\n" + dot + "      </note>\n";
   }
   xml += "    </measure>\n";
   return xml;
@@ -1801,8 +1881,17 @@ function repositionDragMarks() {
     }
     if (noteheadY === null) return; // can't safely position without this note's own anchor
 
-    const stemTipY = noteheadY - stemLen; // this note's OWN row baseline, not a shared global one
-    const targetMinY = stemTipY + TARGET_TOP_FRACTION * stemLen;
+    // Use this note's OWN stem length when it can be found (a 12/8 measure
+    // can mix eighth-note stems with the taller stems of a six-16th group);
+    // otherwise fall back to the render's most common length.
+    let ownStemLen = stemLen;
+    if (staveNote.id) {
+      const own = container.querySelector('path[id="' + staveNote.id + '-stem"]');
+      const om = own && /M[\d.]+ ([\d.]+)L[\d.]+ ([\d.]+)/.exec(own.getAttribute("d") || "");
+      if (om) ownStemLen = Math.abs(parseFloat(om[1]) - parseFloat(om[2]));
+    }
+    const stemTipY = noteheadY - ownStemLen; // this note's OWN row baseline, not a shared global one
+    const targetMinY = stemTipY + TARGET_TOP_FRACTION * ownStemLen;
 
     const paths = staveNote.querySelectorAll("g.vf-modifiers path");
     paths.forEach((path) => {
@@ -1882,6 +1971,12 @@ document.querySelectorAll(".acc-trigger").forEach((trigger) => {
   });
 });
 
+// Position grids follow the beat: 4 columns (one row per beat) for the
+// 16th grid, 3 columns (one row per triplet group) for the triplet grid.
+function applyPositionGridColumns(container, stepsPerMeasure) {
+  container.style.gridTemplateColumns = "repeat(" + (stepsPerMeasure === 12 ? 3 : 4) + ", 1fr)";
+}
+
 // ── Position-grid renderer, shared by accent/flam/drag/custom-sticking ──
 // Rebuilt whenever the subdivision changes (12 vs 16 cells) or on init.
 function renderPositionGrid(containerId, activeSet, onToggle) {
@@ -1889,6 +1984,7 @@ function renderPositionGrid(containerId, activeSet, onToggle) {
   const labels = positionLabels(stepsPerMeasure);
   const container = document.getElementById(containerId);
   container.innerHTML = "";
+  applyPositionGridColumns(container, stepsPerMeasure);
   for (let i = 0; i < stepsPerMeasure; i++) {
     const cell = document.createElement("div");
     cell.className = "pos-cell" + (activeSet.has(i) ? " on" : "");
@@ -1907,6 +2003,7 @@ function renderSinglePositionGrid(containerId, selectedPos, onSelect) {
   const labels = positionLabels(stepsPerMeasure);
   const container = document.getElementById(containerId);
   container.innerHTML = "";
+  applyPositionGridColumns(container, stepsPerMeasure);
   for (let i = 0; i < stepsPerMeasure; i++) {
     const cell = document.createElement("div");
     cell.className = "pos-cell" + (i === selectedPos ? " on" : "");
@@ -1950,11 +2047,18 @@ function renderDragGrid() {
 
 const MAX_RUDIMENT_SELECTIONS = 4;
 
+// A few rudiments only exist in the 16th grid (see TRIPLET_UNAVAILABLE).
+function rudimentUnavailableInCurrentGrid(id) {
+  return state.subdivision === "triplet" && TRIPLET_UNAVAILABLE.has(id);
+}
+
 function updateRudimentCellDisabledStates() {
   const atLimit = state.rudimentPool.size >= MAX_RUDIMENT_SELECTIONS;
   document.querySelectorAll('#rudimentChecklist .tog[data-rudiment-id]').forEach((cell) => {
     const isOn = cell.classList.contains("on");
-    cell.classList.toggle("disabled", atLimit && !isOn);
+    const unavailable = rudimentUnavailableInCurrentGrid(cell.dataset.rudimentId);
+    cell.classList.toggle("disabled", unavailable || (atLimit && !isOn));
+    cell.title = unavailable ? "Not available in triplet (12/8) mode" : "";
   });
 }
 
@@ -1964,9 +2068,12 @@ function updateRudimentCellDisabledStates() {
 function updateRudimentCoverageHint() {
   const el = document.getElementById("rudimentCoverageHint");
   if (!el) return;
-  const n = RUDIMENT_LIBRARY.filter((r) => state.rudimentPool.has(r.id) && r.steps).length;
+  const n = RUDIMENT_LIBRARY.filter((r) => state.rudimentPool.has(r.id) && r.steps && !rudimentUnavailableInCurrentGrid(r.id)).length;
+  const triplet = state.subdivision === "triplet";
   let text = "";
-  if (state.rudimentsEnabled && state.subdivision !== "triplet" && n >= 2) {
+  if (state.rudimentsEnabled && triplet && state.measures === 2 && n >= 3) {
+    text = "In 12/8, long rudiments (7+ notes) need most of a measure, so with 2 measures not all " + n + " may fit. Choose 4 measures to hear them all.";
+  } else if (state.rudimentsEnabled && n >= 2) {
     if (state.measures < 2) {
       text = n <= 2 ? "Both rudiments will appear, one in each half of the measure." : "With 1 measure, two of your " + n + " rudiments play (one per half). Use 2 or more measures to hear all of them.";
     } else if (state.measures === 2 && n >= 3) {
@@ -1992,6 +2099,7 @@ function renderRudimentChecklist() {
     cell.dataset.rudimentId = r.id;
     cell.addEventListener("click", () => {
       const isOn = state.rudimentPool.has(r.id);
+      if (rudimentUnavailableInCurrentGrid(r.id)) return;
       if (!isOn && state.rudimentPool.size >= MAX_RUDIMENT_SELECTIONS) return; // at the cap - ignore new selections
       if (isOn) state.rudimentPool.delete(r.id);
       else state.rudimentPool.add(r.id);
@@ -2059,6 +2167,7 @@ function renderCustomStickingGrid() {
   const labels = positionLabels(stepsPerMeasure);
   const container = document.getElementById("customStickingGrid");
   container.innerHTML = "";
+  applyPositionGridColumns(container, stepsPerMeasure);
   state.customSticking.forEach((hand, i) => {
     const cell = document.createElement("div");
     cell.className = "pos-cell " + (hand === "R" ? "hand-r on" : "hand-l on");
@@ -2087,6 +2196,8 @@ document.querySelectorAll("#subdivisionGroup .tog").forEach((btn) => {
     document.querySelectorAll("#subdivisionGroup .tog").forEach((b) => b.classList.remove("on"));
     btn.classList.add("on");
     state.subdivision = btn.dataset.subdivision;
+    // Drop any selected rudiment that doesn't exist in the new grid.
+    TRIPLET_UNAVAILABLE.forEach((id) => { if (rudimentUnavailableInCurrentGrid(id)) state.rudimentPool.delete(id); });
     updateRudimentCoverageHint();
     // Position sets were defined against the old grid resolution - clamp
     // them into range for the new one rather than leaving stale indices.
@@ -2361,7 +2472,11 @@ function triggerGridStep(step, time) {
     // tuplet bracket (Ten Stroke Roll's 16th "singles" and eighth
     // "doubles"). Tone's own tempo-aware "16n" conversion keeps the
     // spacing exact at any BPM.
-    const secondsPerTick = Tone.Time("16n").toSeconds() / TICKS_PER_SIXTEENTH;
+    // In 12/8 triplet mode one written eighth (30 ticks) is one grid step
+    // ("8t"); in the 16th grid one written 16th (15 ticks) is one step.
+    const secondsPerTick = state.subdivision === "triplet"
+      ? Tone.Time("8t").toSeconds() / (DIVISIONS / 2)
+      : Tone.Time("16n").toSeconds() / TICKS_PER_SIXTEENTH;
     let cumulativeTicks = 0;
     step.specialNotes.forEach((sn) => {
       const noteTime = time + cumulativeTicks * secondsPerTick;
