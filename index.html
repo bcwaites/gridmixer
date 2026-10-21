@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Grid Mixer</title>
 <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.8.4/build/opensheetmusicdisplay.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tone@14.8.49/build/Tone.js"></script>
@@ -299,6 +299,150 @@ input[type="range"].fader {
   .content-scroll { overflow: visible; padding: 0; height: auto; }
   .staff-card { border: none; box-shadow: none; padding: 0; max-width: 100%; }
 }
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   Marimba Warehouse — shared mobile layer  (mw-mobile.css, v1.1)
+   Used by every mixer. EVERY rule here is scoped to a class that
+   mw-mobile.js puts on <html> only for touch devices, so a computer with
+   a mouse never sees any of it:
+     html.mw-touch    any touch device (phones + tablets)
+     html.mw-compact  touch device ≤ 1366px wide (phones and tablets, any orientation)
+     html.mw-phone    touch device < 600px wide (phones in portrait)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Injected elements are hidden unless the compact layout is on */
+.mw-title, #mwMoreBtn, #mwPlaybar, #mwSheet, #mwSheetBackdrop, #mwRotateHint, .mw-close-x, #mwNativeShare { display: none; }
+
+/* ── All touch devices (phones + tablets) ─────────────────────────── */
+html.mw-touch body,
+html.mw-touch .app,
+html.mw-touch .sidebar { height: 100vh; height: 100dvh; } /* Safari's collapsing toolbar */
+
+html.mw-touch button, html.mw-touch .tog, html.mw-touch .pos-cell, html.mw-touch .dir-tog,
+html.mw-touch .acc-trigger, html.mw-touch label, html.mw-touch .switch,
+html.mw-touch .share-copy, html.mw-touch select { touch-action: manipulation; } /* no double-tap zoom */
+
+/* 44px touch targets */
+html.mw-touch .tog { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 8px 14px; font-size: 14px; }
+html.mw-touch .pos-cell { min-height: 44px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+html.mw-touch .pos-grid { gap: 8px; }
+html.mw-touch .dir-tog { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; padding: 0 10px; }
+html.mw-touch .cell-dirs { gap: 6px; }
+html.mw-touch .acc-trigger { min-height: 48px; font-size: 11px; }
+html.mw-touch .switch { width: 50px; height: 30px; }
+html.mw-touch .switch-track::before { width: 26px; height: 26px; }
+html.mw-touch .switch input:checked + .switch-track::before { transform: translateX(20px); }
+html.mw-touch .voice-toggle-row, html.mw-touch .cell-row { min-height: 52px; }
+html.mw-touch input[type="range"] { height: 32px; }
+html.mw-touch .btn-settings, html.mw-touch .btn-gen, html.mw-touch .btn-play, html.mw-touch .btn-stop,
+html.mw-touch .btn-zoom, html.mw-touch .btn-share, html.mw-touch .share-copy { min-height: 44px; }
+
+/* iOS zooms the page when a field's text is under 16px */
+html.mw-touch select, html.mw-touch input[type="number"], html.mw-touch input[type="text"], html.mw-touch .share-input { font-size: 16px !important; min-height: 44px; }
+
+/* No keyboard on most touch devices */
+html.mw-touch .shortcut-hint { display: none !important; }
+
+/* Notch / home bar */
+html.mw-touch .top-bar { padding-top: max(10px, env(safe-area-inset-top)); padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+html.mw-touch .sidebar { padding-bottom: env(safe-area-inset-bottom); padding-top: env(safe-area-inset-top); }
+html.mw-touch .content-scroll { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+
+/* Drawer close button */
+html.mw-compact .mw-close-x, html.mw-touch .sidebar .mw-close-x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; margin: -12px -10px -12px 0; border: none; background: none;
+  font-size: 22px; color: #1A1A1A; cursor: pointer;
+}
+html.mw-touch #sidebarCollapseChevron { display: none; }
+
+/* ── Compact layout: phones + tablets ─────────────────────────────── */
+/* Top bar: Settings · app name · More. Everything else is in the play bar or the More sheet. */
+html.mw-compact .top-bar { flex-wrap: nowrap; gap: 8px; }
+html.mw-compact .top-bar > *:not(#btnSettings):not(.mw-title):not(#mwMoreBtn) { display: none !important; }
+html.mw-compact .mw-title { display: block; flex: 1; text-align: center; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #1A1A1A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html.mw-compact #mwMoreBtn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 8px 14px; min-height: 44px; border-radius: 4px; border: 1px solid #D0D0D0; background: #fff; color: #1A1A1A; text-transform: uppercase; letter-spacing: .04em; }
+html.mw-compact .mixer { display: none; }                  /* faders live in the More sheet */
+html.mw-compact #mwSheet .mixer { display: flex; }
+html.mw-compact .brand-footer { display: none; }
+html.mw-compact .content-scroll { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+html.mw-compact .staff-card { padding: 10px; }
+html.mw-compact .share-bar { margin: 8px 10px; }
+
+/* Play bar: second row at the top, right under Settings / More */
+html.mw-compact #mwPlaybar {
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  position: relative; z-index: 5;
+  padding: 8px max(12px, env(safe-area-inset-right)) 10px max(12px, env(safe-area-inset-left));
+  background: #FFFFFF; border-bottom: 1px solid #E0E0E0;
+}
+html.mw-compact .top-bar { border-bottom: none; padding-bottom: 4px; }
+#mwPlaybar button { touch-action: manipulation; font-family: inherit; }
+#mwPlaybar .mw-pb-gen { flex: 1.2; min-height: 48px; border-radius: 6px; border: 1px solid #1A1A1A; background: #1A1A1A; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+#mwPlaybar .mw-pb-play { flex: 1; min-height: 48px; border-radius: 6px; border: 1px solid #1A1A1A; background: #fff; color: #1A1A1A; font-size: 14px; font-weight: 700; }
+#mwPlaybar .mw-pb-play.playing { background: #F4F4F4; }
+#mwPlaybar .mw-pb-tempo { display: flex; align-items: center; border: 1px solid #D0D0D0; border-radius: 6px; overflow: hidden; }
+#mwPlaybar .mw-pb-tempo button { width: 44px; min-height: 48px; border: none; background: #fff; font-size: 20px; color: #1A1A1A; }
+#mwPlaybar .mw-pb-bpm { min-width: 46px; text-align: center; font-size: 15px; font-weight: 700; color: #1A1A1A; line-height: 1.05; }
+#mwPlaybar .mw-pb-bpm small { display: block; font-size: 9px; font-weight: 600; color: #6B6B6B; letter-spacing: .08em; }
+
+/* More sheet (slides up from the bottom) */
+html.mw-compact #mwSheetBackdrop.open { display: block; position: fixed; inset: 0; z-index: 199; background: rgba(0,0,0,0.35); }
+html.mw-compact #mwSheet {
+  display: flex; flex-direction: column;
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
+  max-height: 80vh; max-height: 80dvh;
+  background: #fff; border-radius: 14px 14px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.2);
+  transform: translateY(105%); transition: transform .25s ease;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+html.mw-compact #mwSheet.open { transform: translateY(0); }
+#mwSheet .mw-sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 6px 18px; border-bottom: 1px solid #E8E8E8; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: #1A1A1A; }
+#mwSheet .mw-sheet-head button { width: 44px; height: 44px; border: none; background: none; font-size: 22px; }
+#mwSheet .mw-sheet-body { overflow-y: auto; padding: 4px 18px 18px; -webkit-overflow-scrolling: touch; }
+#mwSheet .mw-sheet-label { font-size: 10px; font-weight: 700; color: #6B6B6B; text-transform: uppercase; letter-spacing: .1em; margin: 16px 0 6px; }
+#mwSheet .mw-sheet-group > * { margin: 0 !important; }
+#mwSheet .mw-sheet-group > label { display: flex !important; justify-content: space-between; flex-direction: row-reverse; min-height: 52px; font-size: 15px !important; color: #1A1A1A !important; border-bottom: 1px solid #F0F0F0; }
+#mwSheet .mw-sheet-group > div { display: flex !important; justify-content: center; min-height: 52px; }
+#mwSheet .mw-sheet-group > button { width: 100%; min-height: 48px; margin-top: 8px !important; justify-content: center; }
+#mwSheet .mixer { flex-direction: column; align-items: stretch; gap: 10px; padding: 0; border: none; }
+#mwSheet .fader-channel { justify-content: space-between; }
+#mwSheet .fader-channel-master { padding-left: 0; border-left: none; }
+#mwSheet input[type="range"].fader { flex: 1; width: auto; height: 36px; }
+/* Vertical channel strips (Groove Mixer) lie flat in the sheet */
+#mwSheet .fader-channel { flex-direction: row; align-items: center; gap: 10px; }
+#mwSheet .fader-label { min-width: 56px; }
+#mwSheet .fader-track { flex: 1; height: auto; display: flex; }
+#mwSheet .fader-track input[type="range"].fader { -webkit-appearance: auto; appearance: auto; writing-mode: horizontal-tb; direction: ltr; width: 100%; }
+
+/* Short screens (phones in landscape): slimmer bars so the music gets the room */
+@media (max-height: 500px) {
+  html.mw-compact .top-bar { padding-top: max(4px, env(safe-area-inset-top)); padding-bottom: 4px; }
+  html.mw-compact .top-bar .btn-settings, html.mw-compact #mwMoreBtn { min-height: 36px; padding-top: 4px; padding-bottom: 4px; }
+  html.mw-compact #mwPlaybar { padding-top: 4px; padding-bottom: 6px; }
+  html.mw-compact #mwPlaybar .mw-pb-gen, html.mw-compact #mwPlaybar .mw-pb-play, html.mw-compact #mwPlaybar .mw-pb-tempo button { min-height: 40px; }
+  html.mw-compact .content-scroll { padding-top: 8px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+}
+
+/* Rotate hint (phones in portrait) */
+html.mw-phone #mwRotateHint.show {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 10px 12px;
+  background: #F8F8F8; border: 1px solid #E0E0E0; border-radius: 6px; font-size: 13px; color: #1A1A1A;
+}
+#mwRotateHint span { flex: 1; }
+#mwRotateHint button { width: 36px; height: 36px; border: none; background: none; font-size: 18px; }
+
+/* Native share button inside the share bar */
+html.mw-touch #mwNativeShare.available { display: inline-flex; align-items: center; justify-content: center; }
+
+/* Print from a phone/tablet: hide the mobile chrome */
+@media print {
+  #mwPlaybar, #mwSheet, #mwSheetBackdrop, #mwRotateHint { display: none !important; }
+  #osmd-container { width: auto !important; }
+  svg.mw-print-fit { width: 100% !important; height: auto !important; }
+}
+
 </style>
 </head>
 <body>
@@ -799,6 +943,8 @@ function getStickingCycle() {
 // ══════════════════════════════════════════════════════════════════════
 let currentGridSteps = [];   // { hand, accent, ornament } per step, whole piece
 let currentXml = "";
+// 2 measures per line; 1 on phones in portrait (shared mobile layer decides)
+function mwPerLine() { return (window.MW && MW.measuresPerLine && MW.measuresPerLine()) || 2; }
 let osmd = null;
 
 function computeAccentSet(stepsPerMeasure, stepsPerBeat) {
@@ -1454,7 +1600,7 @@ function buildGridMeasureXml(measureNumber, measureSteps, subdivision) {
   // rather than leaving line-wrapping entirely up to the renderer's
   // available-width guess (which can end up 1-measure-per-line on narrower
   // viewports and make the grid hard to read as a sequence).
-  if (measureNumber > 1 && (measureNumber - 1) % 2 === 0) {
+  if (measureNumber > 1 && (measureNumber - 1) % mwPerLine() === 0) {
     xml += "      <print new-system=\"yes\"/>\n";
   }
 
@@ -1654,7 +1800,7 @@ function buildReleaseMeasureXml(measureNumber, subdivision) {
   const dot = isTriplet ? "        <dot/>\n" : "";
 
   let xml = "    <measure number=\"" + measureNumber + "\">\n";
-  if (measureNumber > 1 && (measureNumber - 1) % 2 === 0) {
+  if (measureNumber > 1 && (measureNumber - 1) % mwPerLine() === 0) {
     xml += "      <print new-system=\"yes\"/>\n";
   }
   xml += "      <note>\n";
@@ -1758,7 +1904,9 @@ function installBeamRenderPatch() {
 
 function initOSMD() {
   osmd = new opensheetmusicdisplay.OpenSheetMusicDisplay("osmd-container", {
-    autoResize: true, drawTitle: false, drawPartNames: false,
+    // Touch devices re-render themselves on rotate/resize (keeps the diddle-mark
+    // fix and the phone line breaks); computers keep OSMD's auto-resize as before.
+    autoResize: !(window.MW && MW.isTouch && MW.isTouch()), drawTitle: false, drawPartNames: false,
     setWantedStemDirectionByXml: true,
   });
   installBeamRenderPatch();
@@ -1935,6 +2083,15 @@ function generateAndRender() {
   stopPlayback();
 
   currentGridSteps = generateGridSteps();
+  renderScore("Generated " + state.measures + " measure" + (state.measures > 1 ? "s" : "") + ".");
+}
+
+// Rebuilds the notation from the CURRENT grid (no regeneration) - used after
+// Mix It Up, and whenever the window size, rotation, zoom or printing
+// changes the layout.
+function renderScore(doneMsg) {
+  const statusEl = document.getElementById("status");
+  if (!currentGridSteps.length) return Promise.resolve();
   currentXml = buildGridScoreDocument(currentGridSteps, state.subdivision, state.measures, state.releaseMeasureEnabled);
 
   // Single-stroke tremolo (our drag/diddle mark) has a fixed absolute
@@ -1948,10 +2105,29 @@ function generateAndRender() {
   // output, not guessed.
   osmd.EngravingRules.TremoloStrokeScale = state.subdivision === "triplet" ? 0.6 : 0.8;
 
-  osmd.load(currentXml).then(() => {
+  // Touch devices zoom the music itself (re-laid out to fit the screen);
+  // computers keep the original picture-magnify zoom.
+  const wrap = document.getElementById("staff-scale-wrap");
+  const realZoom = !!(window.MW && MW.isTouch && MW.isTouch());
+  wrap.style.transform = realZoom ? "none" : "scale(" + (state.zoom / 100) + ")";
+  // While printing from a phone/tablet, lay out at desktop width.
+  const container = document.getElementById("osmd-container");
+  container.style.width = window.MW && MW.printing ? "1000px" : "";
+  // Touch devices (and printing from them) use the exact line breaks we
+  // write - 1 measure per line on phones, 2 elsewhere. Computers keep
+  // OSMD's automatic line breaking, exactly as before.
+  osmd.EngravingRules.NewSystemAtXMLNewSystemAttribute = realZoom;
+  return osmd.load(currentXml).then(() => {
+    osmd.zoom = realZoom && !(window.MW && MW.printing) ? state.zoom / 100 : 1;
     osmd.render();
     repositionDragMarks();
-    statusEl.textContent = "Generated " + state.measures + " measure" + (state.measures > 1 ? "s" : "") + ".";
+    // Printing from a phone/tablet: let the desktop-width score scale down to the page.
+    const svgEl = document.querySelector("#osmd-container svg");
+    if (svgEl && window.MW && MW.printing) {
+      if (!svgEl.getAttribute("viewBox")) svgEl.setAttribute("viewBox", "0 0 " + svgEl.getAttribute("width") + " " + svgEl.getAttribute("height"));
+      svgEl.classList.add("mw-print-fit");
+    }
+    if (doneMsg) statusEl.textContent = doneMsg;
   }).catch((err) => {
     statusEl.textContent = "Render error: " + err.message;
     console.error(err);
@@ -2677,8 +2853,19 @@ document.getElementById("btnZoomOut").addEventListener("click", () => {
 });
 function applyZoom() {
   document.getElementById("zoomLabel").textContent = state.zoom + "%";
+  if (window.MW && MW.isTouch && MW.isTouch()) { renderScore(); return; } // re-lay out the music
   document.getElementById("staff-scale-wrap").style.transform = "scale(" + (state.zoom / 100) + ")";
 }
+
+// Touch devices: re-draw the notation when the screen changes size or the
+// phone rotates (same grid, new line breaks). OSMD's own auto-resize is off
+// there so the post-render diddle-mark fix is kept. Computers are unchanged.
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  if (!(window.MW && MW.isTouch && MW.isTouch())) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (osmd && currentGridSteps.length) renderScore(); }, 300);
+});
 
 // Mixer faders
 ["Stroke", "Click", "Master"].forEach((name) => {
@@ -2880,7 +3067,8 @@ document.getElementById("shareCopy").addEventListener("click", function () {
 });
 
 document.getElementById("btnSaveGrid").addEventListener("click", () => {
-  window.print();
+  // On phones/tablets, print at the desktop layout (2 measures per line).
+  if (window.MW && MW.printScore) MW.printScore(() => renderScore()); else window.print();
 });
 
 // Init
@@ -2899,6 +3087,329 @@ window.addEventListener("load", () => {
   initOSMD();
   generateAndRender();
 });
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   Marimba Warehouse — shared mobile layer  (mw-mobile.js, v1.1)
+   Drop this in after an app's own script. It works with the shared mixer
+   layout (top bar, .mixer, sidebar accordions, share bar) and only acts on
+   touch devices — on a computer with a mouse it adds the classes below to
+   nothing and changes nothing.
+
+   It sets on <html>:
+     mw-touch    any touch device (phones + tablets)
+     mw-compact  touch device ≤ 1366px wide (phones and tablets, any orientation)
+     mw-phone    touch device < 600px wide (phones in portrait)
+
+   It looks for: .top-bar (with #btnSettings #btnGen #btnPlay #btnStop and
+   #tempoInput or #tempo), .mixer, .staff-card, .sidebar-header, #shareCopy.
+   Playing state comes from state.isPlaying or a top-level isPlaying flag.
+
+   App hooks (optional - an app works without them, just less tuned):
+     MW.measuresPerLine()    -> 1 on phones in portrait, else 2 (2 while printing)
+     MW.isCompact()          -> true when the compact layout is on
+     window "mw:layoutchange" event -> re-render the notation (layout bucket changed)
+     MW.printScore(render)   -> re-renders at 2 measures per line, prints, restores
+   ═══════════════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+  const html = document.documentElement;
+  const MW = (window.MW = window.MW || {});
+  MW.printing = false;
+
+  // ── Device detection ───────────────────────────────────────────────
+  function isTouchDevice() {
+    const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+    const ipadDesktopMode = navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent); // iPadOS reports as a Mac
+    return !!(coarse || ipadDesktopMode);
+  }
+  function bucket() {
+    const touch = isTouchDevice();
+    const w = window.innerWidth;
+    return { touch, compact: touch && w <= 1366, phone: touch && w < 600 };
+  }
+  let current = null;
+  function applyClasses() {
+    const b = bucket();
+    html.classList.toggle("mw-touch", b.touch);
+    html.classList.toggle("mw-compact", b.compact);
+    html.classList.toggle("mw-phone", b.phone);
+    const changed = !current || current.touch !== b.touch || current.compact !== b.compact || current.phone !== b.phone;
+    current = b;
+    return changed;
+  }
+  MW.isCompact = () => !!(current && current.compact);
+  MW.isTouch = () => !!(current && current.touch);
+  MW.measuresPerLine = () => (MW.printing ? 2 : current && current.phone ? 1 : 2);
+
+  // ── Small DOM helpers ──────────────────────────────────────────────
+  const $ = (sel) => document.querySelector(sel);
+  function el(tag, attrs, html) {
+    const n = document.createElement(tag);
+    Object.entries(attrs || {}).forEach(([k, v]) => (k === "class" ? (n.className = v) : n.setAttribute(k, v)));
+    if (html != null) n.innerHTML = html;
+    return n;
+  }
+  const click = (sel) => { const n = $(sel); if (n) n.click(); };
+
+  // ── Build the mobile chrome once ───────────────────────────────────
+  let sheet, sheetBody, backdrop, playbar, moved = [];
+  function build() {
+    const topBar = $(".top-bar");
+    if (!topBar) return;
+
+    // App name in the compact top bar
+    const name = (document.title || "").split(" \u2014 ")[0].trim(); // "Melody Mixer — Marimba Warehouse" -> "Melody Mixer"
+    const title = el("div", { class: "mw-title" }, name);
+    const settings = $("#btnSettings");
+    if (settings && settings.nextSibling) topBar.insertBefore(title, settings.nextSibling); else topBar.appendChild(title);
+
+    // More button
+    const more = el("button", { id: "mwMoreBtn", type: "button", "aria-label": "More options" }, "&#8943; More");
+    topBar.appendChild(more);
+    more.addEventListener("click", openSheet);
+
+    // More sheet
+    backdrop = el("div", { id: "mwSheetBackdrop" });
+    sheet = el("div", { id: "mwSheet", role: "dialog", "aria-label": "More options" },
+      '<div class="mw-sheet-head"><span>More</span><button type="button" aria-label="Close">&#10005;</button></div><div class="mw-sheet-body"></div>');
+    sheetBody = sheet.querySelector(".mw-sheet-body");
+    document.body.appendChild(backdrop);
+    document.body.appendChild(sheet);
+    backdrop.addEventListener("click", closeSheet);
+    sheet.querySelector(".mw-sheet-head button").addEventListener("click", closeSheet);
+    // Share / Save close the sheet so their result (share bar, print sheet) is visible
+    sheet.addEventListener("click", (e) => { if (e.target.closest(".btn-share")) setTimeout(closeSheet, 0); });
+
+    // Bottom play bar: Mix It Up · Play/Stop · tempo − / +
+    playbar = el("div", { id: "mwPlaybar" },
+      '<button type="button" class="mw-pb-gen">MIX IT UP!</button>' +
+      '<button type="button" class="mw-pb-play">&#9654; Play</button>' +
+      '<div class="mw-pb-tempo"><button type="button" class="mw-pb-down" aria-label="Slower">&minus;</button>' +
+      '<div class="mw-pb-bpm"><span class="mw-pb-val">--</span><small>BPM</small></div>' +
+      '<button type="button" class="mw-pb-up" aria-label="Faster">+</button></div>');
+    // Second row of the top bar (right under Settings / More), so it stays
+    // visible while the music scrolls underneath.
+    topBar.parentNode.insertBefore(playbar, topBar.nextSibling);
+    playbar.querySelector(".mw-pb-gen").addEventListener("click", () => click("#btnGen"));
+    playbar.querySelector(".mw-pb-play").addEventListener("click", () => (playingNow() ? click("#btnStop") : click("#btnPlay")));
+    const nudge = (d) => {
+      const slider = $("#tempo");
+      if (!slider) return;
+      const min = +slider.min || 40, max = +slider.max || 220;
+      slider.value = Math.min(max, Math.max(min, (+slider.value || 100) + d));
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+      syncPlaybar();
+    };
+    holdRepeat(playbar.querySelector(".mw-pb-down"), () => nudge(-1));
+    holdRepeat(playbar.querySelector(".mw-pb-up"), () => nudge(1));
+    setInterval(syncPlaybar, 250);
+
+    // Drawer close (X) - only when the app doesn't already have its own
+    const head = $(".sidebar-header");
+    if (head && !head.querySelector("button")) {
+      const x = el("button", { type: "button", class: "mw-close-x", "aria-label": "Close settings" }, "&#10005;");
+      head.appendChild(x);
+      x.addEventListener("click", (e) => { e.stopPropagation(); closeDrawer(); });
+    }
+
+    // One accordion section open at a time on touch devices
+    document.querySelectorAll(".acc-trigger").forEach((t) => {
+      t.addEventListener("click", () => {
+        if (!MW.isTouch() || !t.classList.contains("open")) return;
+        document.querySelectorAll(".acc-trigger.open").forEach((o) => {
+          if (o === t) return;
+          o.classList.remove("open");
+          const body = document.getElementById(o.dataset.target);
+          if (body) body.classList.remove("open");
+        });
+      });
+    });
+
+    // Rotate hint (phones in portrait), just above the music
+    const card = $(".staff-card");
+    if (card) {
+      const hint = el("div", { id: "mwRotateHint" }, "<span>&#8635; Turn your phone sideways for a wider view of the music.</span><button type=\"button\" aria-label=\"Dismiss\">&#10005;</button>");
+      card.parentNode.insertBefore(hint, card);
+      hint.querySelector("button").addEventListener("click", () => {
+        hint.classList.remove("show");
+        try { sessionStorage.setItem("mwRotateHintDismissed", "1"); } catch (e) {}
+      });
+    }
+
+    // Native share sheet (Messages, AirDrop, email) next to Copy
+    const copy = $("#shareCopy");
+    if (copy && navigator.share) {
+      const ns = el("button", { id: "mwNativeShare", type: "button", class: "share-copy" }, "Share&hellip;");
+      copy.parentNode.insertBefore(ns, copy.nextSibling);
+      ns.addEventListener("click", () => {
+        const url = ($("#shareInput") || {}).value || location.href;
+        if (/^https?:/.test(url)) navigator.share({ title: document.title, url }).catch(() => {});
+      });
+      ns.classList.add("available");
+    }
+  }
+
+  // Press-and-hold repeats the tempo buttons
+  function holdRepeat(btn, fn) {
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; };
+    btn.addEventListener("pointerdown", (e) => { e.preventDefault(); fn(); t1 = setTimeout(() => { t2 = setInterval(fn, 70); }, 400); });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((ev) => btn.addEventListener(ev, stop));
+  }
+
+  function closeDrawer() {
+    if (typeof window.setSidebarCollapsed === "function") return window.setSidebarCollapsed(true);
+    if (typeof window.setSidebarOpen === "function") return window.setSidebarOpen(false);
+    if (typeof window.closeSidebar === "function") return window.closeSidebar();
+    const sb = $("#sidebar"); if (sb) sb.classList.add("collapsed");
+  }
+
+  function playingNow() {
+    try { if (typeof state !== "undefined" && state && "isPlaying" in state) return !!state.isPlaying; } catch (e) {}
+    try { if (typeof isPlaying === "boolean") return isPlaying; } catch (e) {} // apps with a top-level flag
+    return false;
+  }
+  function syncPlaybar() {
+    if (!playbar) return;
+    const playing = playingNow();
+    const p = playbar.querySelector(".mw-pb-play");
+    p.classList.toggle("playing", playing);
+    p.innerHTML = playing ? "&#9632; Stop" : "&#9654; Play";
+    const t = $("#tempoInput") || $("#tempo");
+    if (t && document.activeElement !== t) playbar.querySelector(".mw-pb-val").textContent = t.value;
+  }
+
+  // ── Move secondary top-bar controls + faders into the More sheet ───
+  function isPrimary(node) {
+    return ["#btnSettings", "#btnGen", "#btnPlay", "#btnStop", "#tempoInput", "#mwMoreBtn"].some((s) => node.matches(s) || node.querySelector(s)) || node.classList.contains("mw-title");
+  }
+  function relocate(toSheet) {
+    if (!sheet) return;
+    if (toSheet && !moved.length) {
+      const topBar = $(".top-bar");
+      const playback = el("div", { class: "mw-sheet-group" });
+      const tools = el("div", { class: "mw-sheet-group" });
+      const park = (node, dest) => {
+        const ph = document.createComment("mw-placeholder");
+        node.parentNode.insertBefore(ph, node);
+        moved.push({ node, ph });
+        dest.appendChild(node);
+      };
+      // Share / Save / Download / Reset buttons go under "Share & Save";
+      // other controls (zoom, loop, metronome, toggles) under "Playback".
+      const TOOL = ".btn-share, .btn-pdf, .btn-reset";
+      Array.from(topBar.children).forEach((child) => {
+        if (isPrimary(child)) return;
+        if (child.matches(TOOL)) return park(child, tools);
+        const inner = child.matches("button") ? [] : child.querySelectorAll(TOOL);
+        if (inner.length) return inner.forEach((b) => park(b, tools)); // a group of share buttons
+        park(child, playback);
+      });
+      sheetBody.appendChild(el("div", { class: "mw-sheet-label" }, "Playback"));
+      sheetBody.appendChild(playback);
+      const mixer = $(".mixer");
+      if (mixer) {
+        const ph = document.createComment("mw-placeholder");
+        mixer.parentNode.insertBefore(ph, mixer);
+        moved.push({ node: mixer, ph });
+        sheetBody.appendChild(el("div", { class: "mw-sheet-label" }, "Mix"));
+        sheetBody.appendChild(mixer);
+      }
+      sheetBody.appendChild(el("div", { class: "mw-sheet-label" }, "Share &amp; Save"));
+      sheetBody.appendChild(tools);
+    } else if (!toSheet && moved.length) {
+      moved.forEach(({ node, ph }) => { ph.parentNode.insertBefore(node, ph); ph.remove(); });
+      moved = [];
+      sheetBody.innerHTML = "";
+      closeSheet();
+    }
+  }
+  function openSheet() { sheet.classList.add("open"); backdrop.classList.add("open"); }
+  function closeSheet() { if (sheet) sheet.classList.remove("open"); if (backdrop) backdrop.classList.remove("open"); }
+
+  function updateRotateHint() {
+    const hint = $("#mwRotateHint");
+    if (!hint) return;
+    let dismissed = false;
+    try { dismissed = sessionStorage.getItem("mwRotateHintDismissed") === "1"; } catch (e) {}
+    hint.classList.toggle("show", !!(current && current.phone) && window.innerHeight > window.innerWidth && !dismissed);
+  }
+
+  // ── iPhone silent switch: ask for "playback" audio so the ringer
+  // switch doesn't mute the app (iOS 16.4+; ignored elsewhere) ─────────
+  // Two layers, so it works on every iOS version:
+  //  1. iOS 16.4+/17+: ask for the "playback" audio session directly.
+  //  2. Older iOS: a silent, looping HTML <audio> element started from a tap
+  //     switches the page into the media-playback audio category, which the
+  //     ringer switch doesn't mute - Web Audio (the mixer's sound) then plays
+  //     even with the phone on silent.
+  function playbackAudio() {
+    try { if (navigator.audioSession && navigator.audioSession.type !== "playback") navigator.audioSession.type = "playback"; } catch (e) {}
+  }
+  playbackAudio();
+
+  let silentEl = null;
+  function silentWavUrl() {
+    // 0.5 s of 8 kHz, 8-bit mono silence, built in memory (no file needed)
+    const n = 4000, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+    const str = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+    str(0, "RIFF"); v.setUint32(4, 36 + n, true); str(8, "WAVE"); str(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    str(36, "data"); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+  }
+  function unlockSilentSwitch() {
+    playbackAudio();
+    try {
+      if (!silentEl) {
+        silentEl = document.createElement("audio");
+        silentEl.src = silentWavUrl();
+        silentEl.loop = true;
+        silentEl.preload = "auto";
+        silentEl.setAttribute("playsinline", "");
+        silentEl.setAttribute("x-webkit-airplay", "deny");
+      }
+      if (silentEl.paused) { const p = silentEl.play(); if (p && p.catch) p.catch(() => {}); }
+    } catch (e) {}
+    try { if (window.Tone && Tone.context && Tone.context.state !== "running") Tone.context.resume(); } catch (e) {}
+  }
+  // Must run inside a real tap (iOS only grants audio from touchend/click)
+  ["touchend", "click"].forEach((ev) => window.addEventListener(ev, unlockSilentSwitch, { capture: true, passive: true }));
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && silentEl) { try { silentEl.pause(); } catch (e) {} } // don't hold audio while in the background
+  });
+
+  // ── Print at desktop layout (2 measures per line) ──────────────────
+  // render: a function that re-renders the score and returns a promise.
+  MW.printScore = function (render) {
+    if (!MW.isTouch() || typeof render !== "function") { window.print(); return; }
+    MW.printing = true;
+    const restore = () => { window.removeEventListener("afterprint", restore); MW.printing = false; render(); };
+    window.addEventListener("afterprint", restore);
+    Promise.resolve(render()).then(() => setTimeout(() => window.print(), 50));
+  };
+
+  // ── React to rotation / resizing ───────────────────────────────────
+  function refresh(fire) {
+    const changed = applyClasses();
+    relocate(MW.isCompact());
+    updateRotateHint();
+    if (changed && fire) window.dispatchEvent(new CustomEvent("mw:layoutchange", { detail: current }));
+  }
+  let timer = null;
+  const onResize = () => { clearTimeout(timer); timer = setTimeout(() => refresh(true), 200); };
+  window.addEventListener("resize", onResize);
+  window.addEventListener("orientationchange", onResize);
+
+  applyClasses(); // set classes as early as possible
+  function init() { build(); refresh(false); syncPlaybar(); }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+})();
+
 </script>
 
 </body>
