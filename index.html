@@ -302,6 +302,136 @@ input[type="range"].fader {
 </style>
 <style>
 /* ══════════════════════════════════════════════════════════════════════
+   Marimba Warehouse — shared top bar  (mw-topbar.css, v1)
+   Used by every mixer so the top bar, mixer strip and share-link bar look
+   the same everywhere (the Bass / Tenor / Grid Mixer design). Styling only:
+   every control keeps its own id and behavior.
+
+   Markup it expects, in this order:
+     .top-bar
+       #btnSettings.btn-settings  #btnGen.btn-gen  #btnPlay.btn-play  #btnStop.btn-stop
+       .tb-group.tb-zoom    (.btn-zoom, #zoomLabel.tb-zoom-label, .btn-zoom)
+       .tb-group.tb-tempo   (.tb-label "Tempo", #tempoInput.tb-tempo-input,
+                             .tb-label "BPM", #tempo.tb-tempo-slider)
+       label.tb-toggle      (.switch + text)   Loop · Release Measure · Metronome · Count-in · app extras
+       .btn-share.tb-first-tool  …more .btn-share buttons (Share · Download · Save · Reset)
+     .mixer
+       .fader-channel (.fader-label, input.fader, .fader-val) … .fader-channel-master
+       .play-status (optional, sits at the right)
+     .share-bar  (#shareInput, #shareCopy …)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Top bar ──
+   Each control rule also covers the same control once the phone layout
+   moves it into the More sheet; :where() keeps that copy weaker than the
+   mobile layer's larger touch sizes. */
+.top-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex-shrink: 0;
+  margin: 0; padding: 14px 20px;
+  background: #FFFFFF; border-bottom: 1px solid #E0E0E0;
+}
+.top-bar .btn-settings, .top-bar .btn-gen, .top-bar .btn-play, .top-bar .btn-stop,
+.top-bar .btn-zoom, :where(#mwSheet) .btn-zoom {
+  display: flex; align-items: center; justify-content: center; gap: 6px; flex: none;
+  width: auto; height: auto; min-height: 0; margin: 0; line-height: normal;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 8px 14px; border-radius: 4px;
+  border: 1px solid #D0D0D0; background: #FFFFFF; color: #1A1A1A;
+  cursor: pointer; transition: all .1s;
+}
+.top-bar .btn-settings:hover, .top-bar .btn-play:hover, .top-bar .btn-stop:hover,
+.top-bar .btn-zoom:hover, :where(#mwSheet) .btn-zoom:hover {
+  border-color: #1A1A1A; background: #FFFFFF; color: #1A1A1A;
+}
+.top-bar .btn-gen { background: #1A1A1A; color: #FFFFFF; border-color: #1A1A1A; }
+.top-bar .btn-gen:hover { background: #333333; color: #FFFFFF; border-color: #333333; }
+.top-bar .btn-zoom, :where(#mwSheet) .btn-zoom { padding: 8px 11px; }
+.top-bar .btn-settings svg { width: 14px; height: 14px; fill: currentColor; }
+
+.top-bar .tb-group, :where(#mwSheet) .tb-group { display: flex; align-items: center; gap: 4px; }
+.top-bar .tb-zoom-label, :where(#mwSheet) .tb-zoom-label { font-size: 12px; font-weight: 400; color: #666666; min-width: 36px; text-align: center; }
+.top-bar .tb-tempo, :where(#mwSheet) .tb-tempo { gap: 6px; margin-left: 8px; }
+.top-bar .tb-label, :where(#mwSheet) .tb-label { font-size: 11px; color: #6B6B6B; }
+.top-bar .tb-tempo-input, :where(#mwSheet) .tb-tempo-input {
+  width: 44px; min-height: 0; margin: 0; font-family: inherit; font-size: 12px; padding: 2px 4px;
+  border: 1px solid #D0D0D0; border-radius: 4px; text-align: right; background: #FFFFFF; color: #1A1A1A;
+}
+.top-bar .tb-tempo-slider, :where(#mwSheet) .tb-tempo-slider { width: 100px; margin: 0; accent-color: #1A1A1A; cursor: pointer; }
+
+.top-bar .tb-toggle, :where(#mwSheet) .tb-toggle {
+  display: flex; align-items: center; gap: 6px; margin-left: 8px;
+  font-size: 11px; color: #6B6B6B; cursor: pointer; user-select: none;
+}
+.top-bar .switch, :where(#mwSheet) .switch { position: relative; display: inline-block; width: 34px; height: 18px; flex-shrink: 0; }
+.top-bar .switch input, :where(#mwSheet) .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.top-bar .switch-track, :where(#mwSheet) .switch-track { position: absolute; inset: 0; background: #D0D0D0; border-radius: 999px; cursor: pointer; transition: background .15s; }
+.top-bar .switch-track::before, :where(#mwSheet) .switch-track::before { content: ""; position: absolute; width: 14px; height: 14px; left: 2px; top: 2px; background: #FFFFFF; border-radius: 50%; transition: transform .15s; }
+.top-bar .switch input:checked + .switch-track, :where(#mwSheet) .switch input:checked + .switch-track { background: #1A1A1A; }
+.top-bar .switch input:checked + .switch-track::before, :where(#mwSheet) .switch input:checked + .switch-track::before { transform: translateX(16px); }
+
+.top-bar .btn-share, :where(#mwSheet) .btn-share {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; margin: 0;
+  font-family: inherit; font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: normal; white-space: nowrap;
+  padding: 8px 14px; border-radius: 4px; border: 1px solid #D0D0D0; background: #FFFFFF; color: #1A1A1A;
+  cursor: pointer; transition: all .1s;
+}
+.top-bar .btn-share:hover, :where(#mwSheet) .btn-share:hover { border-color: #1A1A1A; background: #FFFFFF; color: #1A1A1A; }
+.top-bar .tb-first-tool { margin-left: 8px; }
+
+/* ── Mixer strip (horizontal channel strips) ── */
+.mixer {
+  display: flex; align-items: center; gap: 28px; flex-wrap: wrap; flex-shrink: 0;
+  margin: 0; padding: 12px 24px;
+  background: #FFFFFF; border-bottom: 1px solid #E0E0E0;
+}
+.mixer .fader-channel { display: flex; flex-direction: row; align-items: center; gap: 10px; }
+.mixer .fader-channel-master { padding-left: 20px; border-left: 1px solid #E0E0E0; }
+.mixer .fader-label { font-size: 10px; font-weight: 700; color: #6B6B6B; text-transform: uppercase; letter-spacing: .08em; min-width: 44px; }
+.mixer .fader-track { display: contents; }
+.mixer input[type="range"].fader {
+  -webkit-appearance: auto; appearance: auto; writing-mode: horizontal-tb; direction: ltr;
+  width: 110px; height: 20px; margin: 0; accent-color: #1A1A1A; cursor: pointer;
+}
+.mixer .fader-val { font-size: 11px; color: #6B6B6B; min-width: 22px; text-align: center; }
+.mixer .play-status { margin-left: auto; font-size: 12px; color: #6B6B6B; }
+
+/* ── Share-link bar (shown by Share Settings; its display is left to the app) ── */
+.share-bar {
+  align-items: center; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+  margin: 12px 20px 0; padding: 8px 12px;
+  background: #F8F8F8; border: 1px solid #E0E0E0; border-radius: 4px;
+}
+.share-bar .share-label { display: inline; font-size: 11px; color: #6B6B6B; font-weight: 600; white-space: nowrap; }
+.share-bar .share-input {
+  flex: 1; min-width: 200px; width: auto; margin: 0; font-size: 11px; padding: 6px 8px;
+  border: 1px solid #D0D0D0; border-radius: 3px; background: #FFFFFF; color: #1A1A1A; font-family: monospace;
+}
+.share-bar .share-copy {
+  font-size: 11px; padding: 6px 14px; border-radius: 3px; margin: 0;
+  border: 1px solid #1A1A1A; background: #1A1A1A; color: #FFFFFF;
+  cursor: pointer; font-weight: 600; white-space: nowrap;
+}
+.share-bar .share-copy:hover { background: #3A3A3A; }
+.share-bar .share-copy:disabled { opacity: 0.5; cursor: default; }
+
+/* ── Narrow computer windows ── */
+@media (max-width: 600px) {
+  .top-bar { padding: 10px 12px; gap: 6px; }
+  .top-bar .btn-settings, .top-bar .btn-gen, .top-bar .btn-play, .top-bar .btn-stop, .top-bar .btn-zoom { padding: 10px 10px; font-size: 11px; }
+  .mixer { padding: 10px 12px; gap: 14px; overflow-x: auto; }
+  .mixer input[type="range"].fader { width: 80px; height: 26px; }
+  .mixer .fader-channel-master { padding-left: 10px; }
+  .share-bar { margin: 8px 12px 0; }
+  .share-bar .share-input { min-width: 0; width: 100%; }
+}
+
+@media print {
+  .top-bar, .mixer, .share-bar { display: none !important; }
+}
+</style>
+<style>
+/* ══════════════════════════════════════════════════════════════════════
    Marimba Warehouse — shared mobile layer  (mw-mobile.css, v1.1)
    Used by every mixer. EVERY rule here is scoped to a class that
    mw-mobile.js puts on <html> only for touch devices, so a computer with
@@ -655,35 +785,34 @@ html.mw-touch #mwNativeShare.available { display: inline-flex; align-items: cent
       <button class="btn-gen" id="btnGen">MIX IT UP!</button>
       <button class="btn-play" id="btnPlay">&#9654; Play</button>
       <button class="btn-stop" id="btnStop">&#9632; Stop</button>
-      <div style="display:flex;align-items:center;gap:4px;">
+      <div class="tb-group tb-zoom">
         <button class="btn-zoom" id="btnZoomOut" title="Zoom out">&#8722;</button>
-        <span id="zoomLabel" style="font-size:12px;color:#666;min-width:36px;text-align:center;">100%</span>
+        <span id="zoomLabel" class="tb-zoom-label">100%</span>
         <button class="btn-zoom" id="btnZoomIn" title="Zoom in">&#43;</button>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-left:8px;">
-        <span style="font-size:11px;color:#6B6B6B;">Tempo</span>
-        <input type="number" id="tempoInput" min="40" max="220" step="1" value="100" inputmode="numeric"
-          style="width:44px;font-size:12px;padding:2px 4px;border:1px solid #D0D0D0;border-radius:4px;text-align:right;">
-        <span style="font-size:11px;color:#6B6B6B;">BPM</span>
-        <input type="range" id="tempo" min="40" max="220" value="100" step="1" style="width:100px;">
+      <div class="tb-group tb-tempo">
+        <span class="tb-label">Tempo</span>
+        <input type="number" id="tempoInput" class="tb-tempo-input" min="40" max="220" step="1" value="100" inputmode="numeric">
+        <span class="tb-label">BPM</span>
+        <input type="range" id="tempo" class="tb-tempo-slider" min="40" max="220" value="100" step="1">
       </div>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;">
+      <label class="tb-toggle">
         <span class="switch"><input type="checkbox" id="loopToggle" checked><span class="switch-track"></span></span>
         Loop
       </label>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;" title="Adds a plain quarter-note stroke + 3 beats of rest after the pattern. On its own it's just an ending cue; combined with Loop, that same bar of rest doubles as a 1-bar recount before the pattern repeats.">
+      <label class="tb-toggle" title="Adds a plain quarter-note stroke + 3 beats of rest after the pattern. On its own it's just an ending cue; combined with Loop, that same bar of rest doubles as a 1-bar recount before the pattern repeats.">
         <span class="switch"><input type="checkbox" id="releaseMeasureToggle"><span class="switch-track"></span></span>
         Release Measure
       </label>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;">
+      <label class="tb-toggle">
         <span class="switch"><input type="checkbox" id="metronomeToggle"><span class="switch-track"></span></span>
         Metronome
       </label>
-      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:#6B6B6B;margin-left:8px;" title="2-bar count-in">
+      <label class="tb-toggle" title="2-bar count-in">
         <span class="switch"><input type="checkbox" id="countInToggle"><span class="switch-track"></span></span>
         Count-in
       </label>
-      <button class="btn-share" id="btnShareSettings" style="margin-left:8px;">&#128279; Share Settings</button>
+      <button class="btn-share tb-first-tool" id="btnShareSettings">&#128279; Share Settings</button>
       <button class="btn-share" id="btnSaveGrid">&#128190; Save Grid (PDF)</button>
     </div>
 
