@@ -515,6 +515,8 @@ html.mw-compact .top-bar { border-bottom: none; padding-bottom: 4px; }
 #mwPlaybar .mw-pb-tempo { display: flex; align-items: center; border: 1px solid #D0D0D0; border-radius: 6px; overflow: hidden; }
 #mwPlaybar .mw-pb-tempo button { width: 44px; min-height: 48px; border: none; background: #fff; font-size: 20px; color: #1A1A1A; }
 #mwPlaybar .mw-pb-bpm { min-width: 46px; text-align: center; font-size: 15px; font-weight: 700; color: #1A1A1A; line-height: 1.05; }
+#mwPlaybar .mw-pb-val { display: block; width: 46px; margin: 0; padding: 1px 0; border: none; border-radius: 4px; background: transparent; text-align: center; font: inherit; font-size: 16px; font-weight: 700; color: #1A1A1A; line-height: 1.05; -webkit-appearance: none; appearance: none; }
+#mwPlaybar .mw-pb-val:focus { outline: none; background: #F4F4F4; box-shadow: inset 0 0 0 1px #1A1A1A; }
 #mwPlaybar .mw-pb-bpm small { display: block; font-size: 9px; font-weight: 600; color: #6B6B6B; letter-spacing: .08em; }
 
 /* More sheet (slides up from the bottom) */
@@ -3334,7 +3336,7 @@ window.addEventListener("load", () => {
       '<button type="button" class="mw-pb-gen">MIX IT UP!</button>' +
       '<button type="button" class="mw-pb-play">&#9654; Play</button>' +
       '<div class="mw-pb-tempo"><button type="button" class="mw-pb-down" aria-label="Slower">&minus;</button>' +
-      '<div class="mw-pb-bpm"><span class="mw-pb-val">--</span><small>BPM</small></div>' +
+      '<div class="mw-pb-bpm"><input type="text" class="mw-pb-val" inputmode="numeric" pattern="[0-9]*" maxlength="3" enterkeyhint="done" autocomplete="off" aria-label="Tempo (BPM) - tap to type" value="--"><small>BPM</small></div>' +
       '<button type="button" class="mw-pb-up" aria-label="Faster">+</button></div>');
     // Second row of the top bar (right under Settings / More), so it stays
     // visible while the music scrolls underneath.
@@ -3349,6 +3351,23 @@ window.addEventListener("load", () => {
       slider.dispatchEvent(new Event("input", { bubbles: true }));
       syncPlaybar();
     };
+    // Tap the BPM number to type a tempo: Done / Enter / tapping away
+    // applies it (snapped into the slider's range); blank or junk keeps
+    // the current tempo. The - / + buttons are unchanged.
+    const bpmBox = playbar.querySelector(".mw-pb-val");
+    bpmBox.addEventListener("focus", () => { const was = bpmBox.value; setTimeout(() => { if (bpmBox.value === was) { try { bpmBox.select(); } catch (e) {} } }, 0); });
+    bpmBox.addEventListener("input", () => { const d = bpmBox.value.replace(/[^0-9]/g, "").slice(0, 3); if (d !== bpmBox.value) bpmBox.value = d; });
+    bpmBox.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); bpmBox.blur(); } });
+    bpmBox.addEventListener("blur", () => {
+      const slider = $("#tempo");
+      const v = parseInt(bpmBox.value, 10);
+      if (slider && !isNaN(v)) {
+        const min = +slider.min || 40, max = +slider.max || 220;
+        slider.value = Math.min(max, Math.max(min, v));
+        slider.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      syncPlaybar();
+    });
     holdRepeat(playbar.querySelector(".mw-pb-down"), () => nudge(-1));
     holdRepeat(playbar.querySelector(".mw-pb-up"), () => nudge(1));
     setInterval(syncPlaybar, 250);
@@ -3425,7 +3444,8 @@ window.addEventListener("load", () => {
     p.classList.toggle("playing", playing);
     p.innerHTML = playing ? "&#9632; Stop" : "&#9654; Play";
     const t = $("#tempoInput") || $("#tempo");
-    if (t && document.activeElement !== t) playbar.querySelector(".mw-pb-val").textContent = t.value;
+    const bpmVal = playbar.querySelector(".mw-pb-val");
+    if (t && document.activeElement !== t && document.activeElement !== bpmVal) bpmVal.value = t.value;
   }
 
   // ── Move secondary top-bar controls + faders into the More sheet ───
